@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import {
   View,
   Text,
+  Image,
   TextInput,
   StyleSheet,
   TouchableOpacity,
@@ -28,9 +29,7 @@ export const AddCarScreen: React.FC<Props> = ({ navigation }) => {
 
   const handleContinue = () => {
     // TODO: Save car data to state/storage
-    // For now, navigate to main app placeholder
-    console.log('Car added:', { make, model, year, mileage });
-    // navigation.navigate('MainApp')
+    navigation.navigate('MainApp');
   };
 
   return (
@@ -111,7 +110,11 @@ export const AddCarScreen: React.FC<Props> = ({ navigation }) => {
 
             {/* Info hint */}
             <View style={styles.hintCard}>
-              <Text style={styles.hintIcon}>ℹ️</Text>
+              <Image
+            source={require('@/assets/images/info.png')}
+            style={styles.hintIcon}
+            resizeMode="contain"
+          />
               <Text style={styles.hintText}>
                 Accurate mileage helps us predict when your next service is due
                 and track component health.
@@ -224,7 +227,8 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
   },
   hintIcon: {
-    fontSize: 16,
+    width: 18,
+    height: 18,
     marginTop: 2,
   },
   hintText: {
