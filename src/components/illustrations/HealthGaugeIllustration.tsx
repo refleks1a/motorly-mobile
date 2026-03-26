@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, StyleSheet, Dimensions } from 'react-native';
-import Svg, { Circle, Path, Text as SvgText, G, Defs, LinearGradient, Stop } from 'react-native-svg';
+import Svg, { Path, Text as SvgText, Defs, LinearGradient, Stop } from 'react-native-svg';
+import { Car } from 'lucide-react-native';
 import { Colors, Typography } from '@/constants/theme';
 
 const size = Dimensions.get('window').width * 0.6;
@@ -60,16 +61,21 @@ export const HealthGaugeIllustration: React.FC = () => {
         />
 
         {/* Car icon placeholder */}
-        <Circle cx={center} cy={center - 20} r={18} fill={Colors.surfaceContainerLow} />
-        <SvgText
-          x={center}
-          y={center - 14}
-          fontSize={18}
-          fill={Colors.primary}
-          textAnchor="middle"
+        <View
+          style={[
+            styles.iconBadge,
+            {
+              top: center - 20 - 18,
+              left: center - 18,
+              width: 36,
+              height: 36,
+              borderRadius: 18,
+              backgroundColor: Colors.surfaceContainerLow,
+            },
+          ]}
         >
-          🚗
-        </SvgText>
+          <Car size={18} color={Colors.primary} strokeWidth={2.5} />
+        </View>
 
         {/* Percentage text */}
         <SvgText
@@ -110,6 +116,13 @@ export const HealthGaugeIllustration: React.FC = () => {
 
 const styles = StyleSheet.create({
   container: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: size,
+    height: size,
+  },
+  iconBadge: {
+    position: 'absolute',
     alignItems: 'center',
     justifyContent: 'center',
   },

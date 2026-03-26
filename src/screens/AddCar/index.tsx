@@ -10,6 +10,7 @@ import {
   ScrollView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Car } from 'lucide-react-native';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { Colors, Typography, Spacing, Radius } from '@/constants/theme';
 
@@ -45,7 +46,7 @@ export const AddCarScreen: React.FC<Props> = ({ navigation }) => {
           {/* Car icon */}
           <View style={styles.iconContainer}>
             <View style={styles.iconCircle}>
-              <Text style={styles.iconEmoji}>🚗</Text>
+              <Car size={40} color={Colors.primary} strokeWidth={2} />
             </View>
           </View>
 

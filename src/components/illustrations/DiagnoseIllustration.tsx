@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, StyleSheet, Dimensions } from 'react-native';
-import Svg, { Rect, Circle, G, Text as SvgText, Defs, LinearGradient, Stop } from 'react-native-svg';
+import Svg, { Rect, Circle, G, Defs, LinearGradient, Stop } from 'react-native-svg';
+import { Bot, Microscope, Wrench } from 'lucide-react-native';
 import { Colors } from '@/constants/theme';
 
 const size = Dimensions.get('window').width * 0.65;
@@ -20,22 +21,21 @@ export const DiagnoseIllustration: React.FC = () => {
           fill={Colors.surface}
         />
 
-        {/* Robot icon circle */}
-        <Circle
-          cx={size * 0.5}
-          cy={size * 0.25}
-          r={24}
-          fill="#fce8e0"
-        />
-        <SvgText
-          x={size * 0.5}
-          y={size * 0.27}
-          fontSize={22}
-          textAnchor="middle"
-          fill={Colors.primary}
+        <View
+          style={[
+            styles.iconBadge,
+            {
+              top: size * 0.25 - 24,
+              left: size * 0.5 - 24,
+              width: 48,
+              height: 48,
+              borderRadius: 24,
+              backgroundColor: '#fce8e0',
+            },
+          ]}
         >
-          🤖
-        </SvgText>
+          <Bot size={28} color={Colors.primary} strokeWidth={2} />
+        </View>
 
         {/* Placeholder text lines */}
         <Rect
@@ -66,38 +66,43 @@ export const DiagnoseIllustration: React.FC = () => {
         />
 
         {/* Floating diagnostic icon */}
-        <Circle
-          cx={size * 0.82}
-          cy={size * 0.15}
-          r={18}
-          fill={Colors.surface}
-        />
-        <SvgText
-          x={size * 0.82}
-          y={size * 0.17}
-          fontSize={16}
-          textAnchor="middle"
-          fill="#0077b6"
+        <View
+          style={[
+            styles.iconBadge,
+            {
+              top: size * 0.15 - 18,
+              left: size * 0.82 - 18,
+              width: 36,
+              height: 36,
+              borderRadius: 18,
+              backgroundColor: Colors.surface,
+              elevation: 4,
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: 0.1,
+              shadowRadius: 4,
+            },
+          ]}
         >
-          🔬
-        </SvgText>
+          <Microscope size={20} color="#0077b6" strokeWidth={2} />
+        </View>
 
         {/* Floating wrench icon */}
-        <Circle
-          cx={size * 0.12}
-          cy={size * 0.62}
-          r={18}
-          fill="#fce8e0"
-        />
-        <SvgText
-          x={size * 0.12}
-          y={size * 0.64}
-          fontSize={16}
-          textAnchor="middle"
-          fill={Colors.primaryContainer}
+        <View
+          style={[
+            styles.iconBadge,
+            {
+              top: size * 0.62 - 18,
+              left: size * 0.12 - 18,
+              width: 36,
+              height: 36,
+              borderRadius: 18,
+              backgroundColor: '#fce8e0',
+            },
+          ]}
         >
-          🔧
-        </SvgText>
+          <Wrench size={18} color={Colors.primaryContainer} strokeWidth={2} />
+        </View>
       </Svg>
     </View>
   );
@@ -105,6 +110,13 @@ export const DiagnoseIllustration: React.FC = () => {
 
 const styles = StyleSheet.create({
   container: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: size,
+    height: size,
+  },
+  iconBadge: {
+    position: 'absolute',
     alignItems: 'center',
     justifyContent: 'center',
   },

@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, StyleSheet, Dimensions } from 'react-native';
 import Svg, { Rect, Circle, G, Text as SvgText, Path, Defs, LinearGradient, Stop } from 'react-native-svg';
+import { BadgeCheck, Wrench } from 'lucide-react-native';
 import { Colors } from '@/constants/theme';
 
 const size = Dimensions.get('window').width * 0.65;
@@ -37,15 +38,21 @@ export const ShopSearchIllustration: React.FC = () => {
         <Circle cx={size * 0.5} cy={size * 0.17} r={6} fill="white" />
 
         {/* Verified badge */}
-        <Circle cx={size * 0.73} cy={size * 0.08} r={14} fill="#fce8e0" />
-        <SvgText
-          x={size * 0.73}
-          y={size * 0.1}
-          fontSize={14}
-          textAnchor="middle"
+        <View
+          style={[
+            styles.iconBadge,
+            {
+              top: size * 0.08 - 14,
+              left: size * 0.73 - 14,
+              width: 28,
+              height: 28,
+              borderRadius: 14,
+              backgroundColor: '#fce8e0',
+            },
+          ]}
         >
-          ✅
-        </SvgText>
+          <BadgeCheck size={16} color={Colors.primaryContainer} strokeWidth={2.5} />
+        </View>
 
         {/* Shop card */}
         <Rect
@@ -59,16 +66,21 @@ export const ShopSearchIllustration: React.FC = () => {
         />
 
         {/* Wrench icon circle */}
-        <Circle cx={size * 0.24} cy={size * 0.5} r={16} fill={Colors.surfaceContainerLow} />
-        <SvgText
-          x={size * 0.24}
-          y={size * 0.52}
-          fontSize={14}
-          textAnchor="middle"
-          fill={Colors.primary}
+        <View
+          style={[
+            styles.iconBadge,
+            {
+              top: size * 0.5 - 16,
+              left: size * 0.24 - 16,
+              width: 32,
+              height: 32,
+              borderRadius: 16,
+              backgroundColor: Colors.surfaceContainerLow,
+            },
+          ]}
         >
-          🔧
-        </SvgText>
+          <Wrench size={16} color={Colors.primary} strokeWidth={2} />
+        </View>
 
         {/* Star + rating */}
         <SvgText
@@ -128,6 +140,11 @@ export const ShopSearchIllustration: React.FC = () => {
 
 const styles = StyleSheet.create({
   container: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  iconBadge: {
+    position: 'absolute',
     alignItems: 'center',
     justifyContent: 'center',
   },

@@ -13,6 +13,13 @@ interface Props {
 export const OnboardingHealthScreen: React.FC<Props> = ({ navigation }) => {
   return (
     <SafeAreaView style={styles.container}>
+      <TouchableOpacity
+        onPress={() => navigation.navigate('AddCar')}
+        style={styles.skipTopButton}
+      >
+        <Text style={styles.skipText}>Skip</Text>
+      </TouchableOpacity>
+
       <OnboardingSlide
         title="Know Your Car's Health"
         description="Get a clear overview of your vehicle's overall health and upcoming maintenance tasks."
@@ -26,12 +33,6 @@ export const OnboardingHealthScreen: React.FC<Props> = ({ navigation }) => {
           title="Next"
           onPress={() => navigation.navigate('OnboardingDiagnose')}
         />
-        <TouchableOpacity
-          onPress={() => navigation.navigate('AddCar')}
-          style={styles.skipButton}
-        >
-          <Text style={styles.skipText}>Skip</Text>
-        </TouchableOpacity>
       </View>
     </SafeAreaView>
   );
@@ -47,8 +48,9 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing.xxxl,
     alignItems: 'center',
   },
-  skipButton: {
-    marginTop: Spacing.lg,
+  skipTopButton: {
+    alignSelf: 'flex-end',
+    paddingHorizontal: Spacing.xxl,
     paddingVertical: Spacing.sm,
   },
   skipText: {
