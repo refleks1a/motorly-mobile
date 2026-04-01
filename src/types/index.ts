@@ -27,6 +27,7 @@ export interface ServiceRecord {
   mileageAtService: number;
   shopName?: string;
   cost?: number;
+  currency?: string;
   receiptUri?: string;
 }
 
@@ -58,4 +59,15 @@ export interface DiagnosisCard {
   recommendation: string;
   imageUrl?: string;
   severity: 'low' | 'medium' | 'high';
+}
+
+export interface FuelLog {
+  id: string;
+  vehicleId: string;
+  date: string;
+  liters: number;
+  costPerLiter: number;
+  totalCost: number;
+  mileageAtFill: number;
+  station?: string;
 }
