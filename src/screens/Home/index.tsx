@@ -1,16 +1,19 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
+  Image,
   ScrollView,
   StyleSheet,
   TouchableOpacity,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Briefcase, Car, Droplets, Disc } from 'lucide-react-native';
+import { Car, Droplets, Disc } from 'lucide-react-native';
 import { SectionHeader } from '@/components/SectionHeader';
 import { MaintenanceCard } from '@/components/MaintenanceCard';
 import { OfferCard } from '@/components/OfferCard';
+import { OfferDetailModal, type OfferDetail } from '@/components/OfferDetailModal';
+import { MaintenanceDetailModal, type MaintenanceItem } from '@/components/MaintenanceDetailModal';
 import { Colors, Typography, Spacing, Radius, Elevation } from '@/constants/theme';
 
 // Mock data — will be replaced by real API data later
@@ -37,7 +40,7 @@ const MOCK_MAINTENANCE = [
   },
 ];
 
-const MOCK_OFFERS = [
+const MOCK_OFFERS: OfferDetail[] = [
   {
     id: '1',
     badge: 'LIMITED TIME',
@@ -45,6 +48,15 @@ const MOCK_OFFERS = [
     subtitle: 'At City Center Motors',
     buttonLabel: 'Claim Offer',
     backgroundColor: '#ffdccf',
+    // Detailed fields
+    description: 'Get 20% off on all brake services including pad replacement, rotor resurfacing, and brake fluid flush. Professional service with 12-month warranty.',
+    validUntil: '2026-04-30',
+    shopName: 'City Center Motors',
+    shopLocation: '123 Main Street, Baku, Azerbaijan',
+    shopPhone: '+994 12 345 67 89',
+    shopInstagram: '@citycentermotors',
+    shopFacebook: 'City Center Motors Baku',
+    terms: 'Valid for first-time customers only. Cannot be combined with other offers. Appointment required. Offer valid until April 30, 2026.',
   },
   {
     id: '2',
@@ -53,22 +65,105 @@ const MOCK_OFFERS = [
     subtitle: 'Keep your engine happy',
     buttonLabel: 'Book Now',
     backgroundColor: '#cce8ff',
+    // Detailed fields
+    description: 'Comprehensive engine diagnostic scan using state-of-the-art equipment. Includes battery test, emission check, and performance analysis.',
+    validUntil: '2026-03-31',
+    shopName: 'AutoCare Pro',
+    shopLocation: '45 Nizami Street, Baku, Azerbaijan',
+    shopPhone: '+994 12 987 65 43',
+    shopInstagram: '@autocarepro',
+    shopFacebook: 'AutoCare Pro Azerbaijan',
+    terms: 'Free scan includes basic diagnostics. Additional repairs quoted separately. One free scan per vehicle. Valid until March 31, 2026.',
   },
 ];
 
-export const HomeScreen: React.FC = () => {
+interface Props {
+  navigation: any;
+}
+
+export const HomeScreen: React.FC<Props> = ({ navigation }) => {
   const { name, mileage, healthScore } = MOCK_VEHICLE;
   const healthFraction = healthScore / 100;
 
+  // State for offer detail modal
+  const [selectedOffer, setSelectedOffer] = useState<OfferDetail | null>(null);
+  const [isOfferModalVisible, setIsOfferModalVisible] = useState(false);
+
+  // State for maintenance detail modal
+  const [selectedMaintenanceItem, setSelectedMaintenanceItem] = useState<MaintenanceItem | null>(null);
+  const [isMaintenanceDetailModalVisible, setIsMaintenanceDetailModalVisible] = useState(false);
+
+  // Handler for viewing all maintenance items
+  const handleViewAllMaintenance = () => {
+    navigation.navigate('MyCar', { 
+      initialTab: 0 // 0 = Maintenance tab
+    });
+  };
+
+  // Handler for maintenance card press
+  const handleMaintenancePress = (item: MaintenanceItem) => {
+    setSelectedMaintenanceItem(item);
+    setIsMaintenanceDetailModalVisible(true);
+  };
+
+  // Handler for offer card press
+  const handleOfferPress = (offer: OfferDetail) => {
+    setSelectedOffer(offer);
+    setIsOfferModalVisible(true);
+  };
+
+  // Handler for offer button press (same as card press for now)
+  const handleOfferButtonPress = (offer: OfferDetail) => {
+    handleOfferPress(offer);
+  };
+
+  // Handler for closing offer modal
+  const handleCloseOfferModal = () => {
+    setIsOfferModalVisible(false);
+    setSelectedOffer(null);
+  };
+
+  // Handler for closing maintenance modal
+  const handleCloseMaintenanceModal = () => {
+    setIsMaintenanceDetailModalVisible(false);
+    setSelectedMaintenanceItem(null);
+  };
+
+  // Handler for claiming offer
+  const handleClaimOffer = () => {
+    if (selectedOffer) {
+      // In a real app, this would call an API to claim the offer
+      alert(`Offer "${selectedOffer.title}" claimed successfully!`);
+      handleCloseOfferModal();
+    }
+  };
+
+  // Handler for maintenance actions (delete/update)
+  const handleDeleteMaintenanceItem = (id: string) => {
+    // In a real app, this would call an API to delete the maintenance item
+    alert(`Maintenance item with ID ${id} deleted`);
+    handleCloseMaintenanceModal();
+  };
+
+  const handleUpdateMaintenanceItem = (id: string, updatedItem: MaintenanceItem) => {
+    // In a real app, this would call an API to update the maintenance item
+    alert(`Maintenance item with ID ${id} updated`);
+    handleCloseMaintenanceModal();
+  };
+
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top']}>
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
         {/* ── Header ── */}
         <View style={styles.header}>
-          <Briefcase size={22} color={Colors.primary} strokeWidth={2.5} />
+          <Image
+            source={require('@/assets/images/logo.png')}
+            style={styles.logo}
+            resizeMode="contain"
+          />
           <Text style={styles.wordmark}>Motorly</Text>
         </View>
 
@@ -97,7 +192,11 @@ export const HomeScreen: React.FC = () => {
 
         {/* ── Upcoming Maintenance ── */}
         <View style={styles.section}>
-          <SectionHeader title="Upcoming Maintenance" />
+          <SectionHeader
+            title="Upcoming Maintenance"
+            actionLabel="All"
+            onAction={handleViewAllMaintenance}
+          />
           {MOCK_MAINTENANCE.map((item) => (
             <MaintenanceCard
               key={item.id}
@@ -105,6 +204,7 @@ export const HomeScreen: React.FC = () => {
               title={item.title}
               subtitle={item.subtitle}
               status={item.status}
+              onPress={() => handleMaintenancePress(item)}
             />
           ))}
         </View>
@@ -113,8 +213,7 @@ export const HomeScreen: React.FC = () => {
         <View style={styles.section}>
           <SectionHeader
             title="Special Offers"
-            actionLabel="View All"
-            onAction={() => {}}
+            // No actionLabel - removed "All" button as requested
           />
           <ScrollView
             horizontal
@@ -129,11 +228,30 @@ export const HomeScreen: React.FC = () => {
                 subtitle={offer.subtitle}
                 buttonLabel={offer.buttonLabel}
                 backgroundColor={offer.backgroundColor}
+                onPress={() => handleOfferPress(offer)}
+                onButtonPress={() => handleOfferButtonPress(offer)}
               />
             ))}
           </ScrollView>
         </View>
       </ScrollView>
+
+      {/* Offer Detail Modal */}
+      <OfferDetailModal
+        visible={isOfferModalVisible}
+        onClose={handleCloseOfferModal}
+        offer={selectedOffer}
+        onClaim={handleClaimOffer}
+      />
+
+      {/* Maintenance Detail Modal */}
+      <MaintenanceDetailModal
+        visible={isMaintenanceDetailModalVisible}
+        onClose={handleCloseMaintenanceModal}
+        item={selectedMaintenanceItem}
+        onDelete={handleDeleteMaintenanceItem}
+        onUpdate={handleUpdateMaintenanceItem}
+      />
     </SafeAreaView>
   );
 };
@@ -144,7 +262,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.background,
   },
   scrollContent: {
-    paddingBottom: Spacing.xxxl,
+    paddingBottom: Spacing.lg,
   },
 
   // Header
@@ -156,11 +274,15 @@ const styles = StyleSheet.create({
     paddingTop: Spacing.lg,
     paddingBottom: Spacing.xl,
   },
+  logo: {
+    width: 26,
+    height: 26,
+  },
   wordmark: {
     fontSize: Typography.titleLg,
     fontWeight: Typography.weightExtraBold,
     fontFamily: Typography.fontDisplay,
-    color: Colors.onBackground,
+    color: Colors.primary,
   },
 
   // Vehicle Card
@@ -169,7 +291,7 @@ const styles = StyleSheet.create({
     borderRadius: Radius.md,
     marginHorizontal: Spacing.xxl,
     padding: Spacing.xl,
-    marginBottom: Spacing.xxxl,
+    marginBottom: Spacing.xl,
     ...Elevation.floating,
   },
   vehicleTop: {
@@ -240,9 +362,10 @@ const styles = StyleSheet.create({
   // Sections
   section: {
     paddingHorizontal: Spacing.xxl,
-    marginBottom: Spacing.xxxl,
+    marginBottom: Spacing.xl,
   },
   offersScroll: {
     paddingRight: Spacing.xxl,
+    paddingLeft: 0,
   },
 });
