@@ -1,4 +1,4 @@
-import React from 'react';
+  import React from 'react';
 import { View, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { OnboardingSlide } from '@/components/OnboardingSlide';
@@ -24,7 +24,7 @@ export const OnboardingShopsScreen: React.FC<Props> = ({ navigation }) => {
       <View style={styles.bottomSection}>
         <PrimaryButton
           title="Get Started"
-          onPress={() => navigation.navigate('AddCar')}
+          onPress={() => navigation.navigate('Auth')}
         />
       </View>
     </SafeAreaView>

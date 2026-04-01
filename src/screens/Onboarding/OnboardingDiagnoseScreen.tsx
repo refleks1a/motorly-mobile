@@ -14,7 +14,7 @@ export const OnboardingDiagnoseScreen: React.FC<Props> = ({ navigation }) => {
   return (
     <SafeAreaView style={styles.container}>
       <TouchableOpacity
-        onPress={() => navigation.navigate('AddCar')}
+        onPress={() => navigation.navigate('Auth')}
         style={styles.skipTopButton}
       >
         <Text style={styles.skipText}>Skip</Text>

@@ -4,7 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors, Typography, Spacing } from '@/constants/theme';
 
 export const ShopsScreen: React.FC = () => (
-  <SafeAreaView style={styles.container}>
+  <SafeAreaView style={styles.container} edges={['top']}>
     <View style={styles.center}>
       <Text style={styles.label}>Auto Shops</Text>
       <Text style={styles.sub}>Coming soon</Text>
