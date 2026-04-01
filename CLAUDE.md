@@ -108,6 +108,20 @@ Root
 
 ---
 
+## Screen Implementation Notes
+
+### My Car (`screens/MyCar/`)
+- **Structure:** Page title + vehicle header card → `TabSelector` → tab content
+- **Tabs:** Maintenance (reuses `MaintenanceCard`), History (inline cards), Fuel (`FuelLogCard`)
+- **New Components:**
+  - `TabSelector` — reusable horizontal tab bar with underline indicator
+  - `FuelLogCard` — fuel fill-up entry card (icon badge + text + cost-per-liter)
+- **New Types:** `FuelLog` in `types/index.ts`
+- **Mock Data:** All tabs use mock data; will be replaced by API calls once backend is ready
+- **Empty States:** Each tab renders a centered icon + message when data array is empty
+
+---
+
 ## Key Notes
 - Design is not finalized — some adjustments will be made during development
 - Designs are in `../design/` folder (sibling to this repo)
