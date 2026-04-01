@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { Plus } from 'lucide-react-native';
 import { Colors, Typography, Spacing } from '@/constants/theme';
 
 interface SectionHeaderProps {
@@ -17,7 +18,11 @@ export const SectionHeader: React.FC<SectionHeaderProps> = ({
     <Text style={styles.title}>{title}</Text>
     {actionLabel && (
       <TouchableOpacity onPress={onAction} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-        <Text style={styles.action}>{actionLabel}</Text>
+        {actionLabel === '+' ? (
+          <Plus size={24} color={Colors.primary} strokeWidth={2.5} />
+        ) : (
+          <Text style={styles.action}>{actionLabel}</Text>
+        )}
       </TouchableOpacity>
     )}
   </View>

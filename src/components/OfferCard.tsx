@@ -12,6 +12,7 @@ interface OfferCardProps {
   buttonLabel: string;
   backgroundColor: string;
   onPress?: () => void;
+  onButtonPress?: () => void;
 }
 
 export const OfferCard: React.FC<OfferCardProps> = ({
@@ -21,8 +22,13 @@ export const OfferCard: React.FC<OfferCardProps> = ({
   buttonLabel,
   backgroundColor,
   onPress,
+  onButtonPress,
 }) => (
-  <View style={[styles.card, { backgroundColor }]}>
+  <TouchableOpacity 
+    style={[styles.card, { backgroundColor }]} 
+    onPress={onPress}
+    activeOpacity={0.9}
+  >
     {/* Badge row */}
     <View style={styles.badgeRow}>
       <Tag size={14} color={Colors.onBackground} strokeWidth={2} />
@@ -34,10 +40,21 @@ export const OfferCard: React.FC<OfferCardProps> = ({
     <Text style={styles.subtitle}>{subtitle}</Text>
 
     {/* CTA */}
-    <TouchableOpacity style={styles.button} onPress={onPress} activeOpacity={0.85}>
+    <TouchableOpacity 
+      style={styles.button} 
+      onPress={(e: any) => {
+        e.stopPropagation();
+        if (onButtonPress) {
+          onButtonPress();
+        } else if (onPress) {
+          onPress();
+        }
+      }} 
+      activeOpacity={0.85}
+    >
       <Text style={styles.buttonText}>{buttonLabel}</Text>
     </TouchableOpacity>
-  </View>
+  </TouchableOpacity>
 );
 
 const styles = StyleSheet.create({
@@ -76,7 +93,7 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.xl,
   },
   button: {
-    backgroundColor: Colors.primary,
+    backgroundColor: 'rgba(20, 12, 8, 0.72)',
     borderRadius: Radius.md,
     height: 48,
     alignItems: 'center',
