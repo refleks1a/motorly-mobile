@@ -83,21 +83,32 @@ export const MaintenanceDetailModal: React.FC<MaintenanceDetailModalProps> = ({
   const handleDelete = () => {
     if (!item) return;
     
-    Alert.alert(
-      'Delete Maintenance Item',
-      'Are you sure you want to delete this maintenance item?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: () => {
-            onDelete(item.id);
-            onClose();
+    // Platform-specific confirmation
+    if (Platform.OS === 'web') {
+      // Web browser - use window.confirm
+      const isConfirmed = window.confirm('Are you sure you want to delete this maintenance item?');
+      if (isConfirmed) {
+        onDelete(item.id);
+        onClose();
+      }
+    } else {
+      // Mobile - use Alert.alert
+      Alert.alert(
+        'Delete Maintenance Item',
+        'Are you sure you want to delete this maintenance item?',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Delete',
+            style: 'destructive',
+            onPress: () => {
+              onDelete(item.id);
+              onClose();
+            },
           },
-        },
-      ]
-    );
+        ]
+      );
+    }
   };
 
   const handleSave = () => {

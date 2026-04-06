@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -12,6 +12,7 @@ import {
   Dimensions,
   Modal,
   Pressable,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Camera, ArrowUp, MoreHorizontal, Trash2 } from 'lucide-react-native';
@@ -21,6 +22,8 @@ import { UserMessage } from '@/components/chat/UserMessage';
 import { DateSeparator } from '@/components/chat/DateSeparator';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Colors, Typography, Spacing, Radius } from '@/constants/theme';
+import chatService, { ChatMessage, ChatSession, SendMessageRequest } from '@/services/chat.service';
+import { useVehicles } from '@/contexts/VehicleContext';
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
@@ -32,51 +35,136 @@ interface AiMsg   extends BaseMsg { type: 'ai';   text: string; timestamp?: stri
 interface UserMsg extends BaseMsg { type: 'user'; text: string; timestamp?: string; }
 type Message = DateMsg | AiMsg | UserMsg;
 
-// ── Seed data (matches design) ───────────────────────────────────────────────
+// ── Helper Functions ─────────────────────────────────────────────────────────
 
-const SEED: Message[] = [
-  { id: 'd1', type: 'date', label: 'Today' },
-  {
-    id: 'a1',
-    type: 'ai',
-    text: "Hello! I'm your Motorly AI assistant. What seems to be the problem with your vehicle today?",
-    timestamp: 'March 27, 10:40',
-  },
-  {
-    id: 'u1',
-    type: 'user',
-    text: 'My car is making a high-pitched squealing sound when I brake, especially in the morning.',
-    timestamp: 'March 27, 10:42',
-  },
-  {
-    id: 'a2',
-    type: 'ai',
-    text: 'That sound is often related to the brake pads. It could be the "wear indicator" — a small metal tab designed to scrape the rotor when pads are low.',
-    timestamp: 'March 27, 10:42',
-    diagnosisCard: {
-      issue: 'Likely Issue: Brake Pad Wear',
-      recommendation: 'Recommended: Visual Inspection',
-      image: require('@/assets/images/brake.png'),
-    },
-  },
-  {
-    id: 'u2',
-    type: 'user',
-    text: 'Is it safe to drive to work tomorrow?',
-    timestamp: 'March 27, 10:43',
-  },
-];
+const convertChatMessagesToUIMessages = (chatMessages: ChatMessage[]): Message[] => {
+  const messages: Message[] = [];
+  let currentDate = '';
+  
+  chatMessages.forEach((msg, index) => {
+    const msgDate = new Date(msg.createdAt).toLocaleDateString('en-US', { 
+      month: 'long', 
+      day: 'numeric',
+      year: 'numeric'
+    });
+    
+    // Add date separator if date changed
+    if (msgDate !== currentDate) {
+      currentDate = msgDate;
+      messages.push({
+        id: `date-${msgDate}`,
+        type: 'date',
+        label: msgDate === new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) 
+          ? 'Today' 
+          : msgDate,
+      });
+    }
+    
+    // Convert chat message to UI message
+    const timestamp = new Date(msg.createdAt).toLocaleTimeString([], { 
+      hour: '2-digit', 
+      minute: '2-digit', 
+      hour12: false 
+    });
+    
+    if (msg.role === 'user') {
+      messages.push({
+        id: msg.id,
+        type: 'user',
+        text: msg.content,
+        timestamp,
+      });
+    } else if (msg.role === 'assistant') {
+      const uiMessage: Message = {
+        id: msg.id,
+        type: 'ai',
+        text: msg.content,
+        timestamp,
+      };
+      
+      // Add diagnosis card if metadata exists
+      if (msg.metadata?.diagnosis) {
+        uiMessage.diagnosisCard = {
+          issue: msg.metadata.diagnosis,
+          recommendation: msg.metadata.recommendations?.[0] || 'Recommended: Further Inspection',
+          image: require('@/assets/images/brake.png'), // Default image
+        };
+      }
+      
+      messages.push(uiMessage);
+    }
+    // Note: system messages are not displayed in UI
+  });
+  
+  return messages;
+};
 
 // ── Component ────────────────────────────────────────────────────────────────
 
 export const DiagnoseScreen: React.FC = () => {
-  const [messages, setMessages] = useState<Message[]>(SEED);
+  const { primaryVehicle } = useVehicles();
+  
+  // Chat session state
+  const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
+  const [isLoadingSession, setIsLoadingSession] = useState(false);
+  const [isSendingMessage, setIsSendingMessage] = useState(false);
+  
+  // UI state
+  const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [headerMenuVisible, setHeaderMenuVisible] = useState(false);
   const [headerMenuPos, setHeaderMenuPos] = useState({ top: 0, right: 0 });
 
   const listRef = useRef<FlatList>(null);
   const moreBtnRef = useRef<View>(null);
+
+  // Initialize or load chat session
+  useEffect(() => {
+    const initializeChatSession = async () => {
+      try {
+        setIsLoadingSession(true);
+        
+        // Check if we have an existing session, otherwise create a new one
+        const sessions = await chatService.getChatSessions();
+        
+        if (sessions.length > 0) {
+          // Use the most recent session
+          const latestSession = sessions[0];
+          setCurrentSessionId(latestSession.id);
+          
+          // Load messages from the session
+          const sessionData = await chatService.getChatSession(latestSession.id);
+          const loadedMessages = convertChatMessagesToUIMessages(sessionData.messages);
+          setMessages(loadedMessages);
+        } else {
+          // Create a new session
+          const vehicleName = primaryVehicle 
+            ? `${primaryVehicle.year} ${primaryVehicle.make} ${primaryVehicle.model}`
+            : 'My Vehicle';
+          
+          const newSession = await chatService.createChatSession({
+            title: `Diagnosis for ${vehicleName}`,
+            vehicleId: primaryVehicle?.id,
+            initialMessage: "Hello! I'm your Motorly AI assistant. What seems to be the problem with your vehicle today?"
+          });
+          
+          setCurrentSessionId(newSession.id);
+          
+          // Don't add any initial messages - the backend will handle the initial greeting
+          // The user will see the empty state and can start typing
+          setMessages([]);
+        }
+      } catch (error) {
+        console.error('Failed to initialize chat session:', error);
+        // Fallback to empty state
+        setMessages([]);
+      } finally {
+        setIsLoadingSession(false);
+      }
+    };
+
+    initializeChatSession();
+  }, [primaryVehicle]);
 
   const handleMorePress = () => {
     moreBtnRef.current?.measure((x, y, w, h, px, py) => {
@@ -86,37 +174,93 @@ export const DiagnoseScreen: React.FC = () => {
     });
   };
 
-  const handleClearChat = () => {
-    setMessages([]);
-    setHeaderMenuVisible(false);
+  const handleClearChat = async () => {
+    try {
+      if (currentSessionId) {
+        await chatService.deleteChatSession(currentSessionId);
+      }
+      setCurrentSessionId(null);
+      setMessages([]);
+      setHeaderMenuVisible(false);
+      
+      // Create a new session
+      const vehicleName = primaryVehicle 
+        ? `${primaryVehicle.year} ${primaryVehicle.make} ${primaryVehicle.model}`
+        : 'My Vehicle';
+      
+      const newSession = await chatService.createChatSession({
+        title: `Diagnosis for ${vehicleName}`,
+        vehicleId: primaryVehicle?.id,
+        initialMessage: "Hello! I'm your Motorly AI assistant. What seems to be the problem with your vehicle today?"
+      });
+      
+      setCurrentSessionId(newSession.id);
+      
+      // Don't add any initial messages - keep it empty
+      setMessages([]);
+    } catch (error) {
+      console.error('Failed to clear chat:', error);
+    }
   };
 
-  const sendMessage = () => {
+  const sendMessage = async () => {
     const text = input.trim();
-    if (!text) return;
+    if (!text || isSendingMessage) return;
 
     const now = new Date();
     const timestamp = now.toLocaleDateString('en-US', { month: 'long', day: 'numeric' })
       + ', '
       + now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
 
+    // Add user message to UI immediately
+    const userMessageId = `u${Date.now()}`;
     setMessages(prev => [
       ...prev,
-      { id: `u${Date.now()}`, type: 'user', text, timestamp },
+      { id: userMessageId, type: 'user', text, timestamp },
     ]);
     setInput('');
+    setIsSendingMessage(true);
 
-    // Simulate AI thinking → response
-    setTimeout(() => {
-      setMessages(prev => [
-        ...prev,
-        {
-          id: `a${Date.now()}`,
-          type: 'ai',
-          text: "I'm analyzing your description. Could you tell me more about when you first noticed this — and whether the sound changes with speed?",
-        },
-      ]);
-    }, 1200);
+    try {
+      // Use demo mode (no authentication required)
+      const demoResponse = await chatService.demoDiagnosis(text);
+      
+      // Add AI response to UI
+      const aiMessage: Message = {
+        id: `a${Date.now()}`,
+        type: 'ai',
+        text: demoResponse.content,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }),
+      };
+
+      // Check if we have diagnosis metadata to show a diagnosis card
+      if (demoResponse.diagnosisResult) {
+        const diagnosis = demoResponse.diagnosisResult;
+        const primaryIssue = diagnosis.potentialIssues?.[0]?.name || 'Car Issue';
+        const recommendation = diagnosis.recommendedActions?.[0] || 'Recommended: Further Inspection';
+        
+        aiMessage.diagnosisCard = {
+          issue: primaryIssue,
+          recommendation: recommendation,
+          image: require('@/assets/images/brake.png'), // Default image
+        };
+      }
+
+      setMessages(prev => [...prev, aiMessage]);
+    } catch (error: any) {
+      console.error('Failed to send message:', error);
+      
+      // Show error message
+      const errorMessage: Message = {
+        id: `e${Date.now()}`,
+        type: 'ai',
+        text: "I'm having trouble connecting right now. Please try again in a moment.",
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }),
+      };
+      setMessages(prev => [...prev, errorMessage]);
+    } finally {
+      setIsSendingMessage(false);
+    }
   };
 
   const renderItem = ({ item }: { item: Message }) => {
@@ -151,6 +295,7 @@ export const DiagnoseScreen: React.FC = () => {
           ref={moreBtnRef}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           onPress={handleMorePress}
+          disabled={isLoadingSession}
         >
           <MoreHorizontal size={24} color={Colors.onBackground} />
         </TouchableOpacity>
@@ -162,15 +307,35 @@ export const DiagnoseScreen: React.FC = () => {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         keyboardVerticalOffset={0}
       >
-        <FlatList
-          ref={listRef}
-          data={messages}
-          keyExtractor={m => m.id}
-          renderItem={renderItem}
-          contentContainerStyle={styles.listContent}
-          onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: true })}
-          showsVerticalScrollIndicator={false}
-        />
+        {isLoadingSession ? (
+          // Loading state
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color={Colors.primary} />
+            <Text style={styles.loadingText}>Loading chat...</Text>
+          </View>
+        ) : messages.length === 0 ? (
+          // Empty state
+          <View style={styles.emptyContainer}>
+            <Text style={styles.emptyTitle}>AI Car Diagnosis</Text>
+            <Text style={styles.emptyDescription}>
+              Describe your car issue and get AI-powered diagnosis and recommendations.
+            </Text>
+          </View>
+        ) : (
+          // Chat messages
+          <FlatList
+            ref={listRef}
+            data={messages}
+            keyExtractor={m => m.id}
+            renderItem={renderItem}
+            contentContainerStyle={styles.listContent}
+            style={styles.list}
+            onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: true })}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            removeClippedSubviews={false}
+          />
+        )}
 
         {/* ── Input bar ── */}
         <View style={styles.inputContainer}>
@@ -180,34 +345,41 @@ export const DiagnoseScreen: React.FC = () => {
             pointerEvents="none"
           />
           <View style={styles.inputBar}>
-          <TouchableOpacity style={styles.cameraBtn} activeOpacity={0.7}>
-            <Camera size={26} color={Colors.onSurfaceVariant} strokeWidth={2} />
-          </TouchableOpacity>
-          <View style={styles.inputWrapper}>
-            <TextInput
-              style={styles.input}
-              placeholder="Ask Motorly..."
-              placeholderTextColor={Colors.onSurfaceVariant}
-              value={input}
-              onChangeText={setInput}
-              multiline
-              returnKeyType="send"
-              onSubmitEditing={sendMessage}
-            />
-            <TouchableOpacity
-              style={[styles.sendBtn, !input.trim() && styles.sendBtnDisabled]}
-              activeOpacity={0.8}
-              onPress={sendMessage}
-              disabled={!input.trim()}
-            >
-              <ArrowUp 
-                size={20} 
-                color={!input.trim() ? Colors.onSurfaceVariant : Colors.onPrimary} 
-                strokeWidth={3} 
-              />
+            <TouchableOpacity style={styles.cameraBtn} activeOpacity={0.7} disabled={isLoadingSession}>
+              <Camera size={26} color={Colors.onSurfaceVariant} strokeWidth={2} />
             </TouchableOpacity>
+            <View style={styles.inputWrapper}>
+              <TextInput
+                style={styles.input}
+                placeholder="Ask Motorly..."
+                placeholderTextColor={Colors.onSurfaceVariant}
+                value={input}
+                onChangeText={setInput}
+                multiline
+                returnKeyType="send"
+                onSubmitEditing={sendMessage}
+                editable={!isLoadingSession && !isSendingMessage}
+              />
+              {isSendingMessage ? (
+                <View style={[styles.sendBtn, styles.sendBtnDisabled]}>
+                  <ActivityIndicator size="small" color={Colors.onSurfaceVariant} />
+                </View>
+              ) : (
+                <TouchableOpacity
+                  style={[styles.sendBtn, !input.trim() && styles.sendBtnDisabled]}
+                  activeOpacity={0.8}
+                  onPress={sendMessage}
+                  disabled={!input.trim() || isSendingMessage}
+                >
+                  <ArrowUp 
+                    size={20} 
+                    color={!input.trim() ? Colors.onSurfaceVariant : Colors.onPrimary} 
+                    strokeWidth={3} 
+                  />
+                </TouchableOpacity>
+              )}
+            </View>
           </View>
-        </View>
         </View>
       </KeyboardAvoidingView>
 
@@ -268,6 +440,9 @@ const styles = StyleSheet.create({
   },
 
   // List
+  list: {
+    flex: 1,
+  },
   listContent: {
     paddingTop: Spacing.sm,
     paddingBottom: Spacing.lg,
@@ -331,6 +506,44 @@ const styles = StyleSheet.create({
   },
   sendBtnDisabled: {
     backgroundColor: Colors.surfaceContainerLow,
+  },
+
+  // Loading state
+  loadingContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingBottom: 100,
+  },
+  loadingText: {
+    marginTop: Spacing.lg,
+    fontSize: Typography.bodyLg,
+    fontFamily: Typography.fontBody,
+    color: Colors.onSurfaceVariant,
+  },
+
+  // Empty state
+  emptyContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: Spacing.xxl,
+    paddingBottom: 100,
+  },
+  emptyTitle: {
+    fontSize: Typography.headlineMd,
+    fontWeight: Typography.weightBold,
+    fontFamily: Typography.fontDisplay,
+    color: Colors.onBackground,
+    marginBottom: Spacing.md,
+    textAlign: 'center',
+  },
+  emptyDescription: {
+    fontSize: Typography.bodyLg,
+    fontFamily: Typography.fontBody,
+    color: Colors.onSurfaceVariant,
+    textAlign: 'center',
+    lineHeight: 24,
   },
 
   // Header Menu

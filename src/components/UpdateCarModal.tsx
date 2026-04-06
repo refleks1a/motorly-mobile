@@ -16,21 +16,13 @@ import {
 import { X, Camera } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { Colors, Typography, Spacing, Radius } from '@/constants/theme';
-
-export interface VehicleDetails {
-  productionYear: string;
-  brand: string;
-  model: string;
-  mileage: string;
-  licensePlate: string;
-  imageUrl: string;
-}
+import { Vehicle, UpdateVehicleRequest } from '@/services/vehicle.service';
 
 interface UpdateCarModalProps {
   visible: boolean;
   onClose: () => void;
-  vehicle: VehicleDetails;
-  onSave: (details: Partial<VehicleDetails>) => void;
+  vehicle: Vehicle;
+  onSave: (details: UpdateVehicleRequest) => Promise<void> | void;
 }
 
 export const UpdateCarModal: React.FC<UpdateCarModalProps> = ({
@@ -39,12 +31,24 @@ export const UpdateCarModal: React.FC<UpdateCarModalProps> = ({
   vehicle,
   onSave,
 }) => {
-  const [details, setDetails] = useState(vehicle);
-  const [mileageInput, setMileageInput] = useState(() => vehicle.mileage.replace(/\D/g, ''));
+  // Convert Vehicle to local state with the fields we need for the form
+  const [make, setMake] = useState(vehicle.make || '');
+  const [model, setModel] = useState(vehicle.model || '');
+  const [year, setYear] = useState(vehicle.year ? String(vehicle.year) : '');
+  const [mileageInput, setMileageInput] = useState(() => 
+    vehicle.mileage ? String(vehicle.mileage).replace(/\D/g, '') : ''
+  );
+  const [licensePlate, setLicensePlate] = useState(vehicle.licensePlate || '');
+  const [imageUrl, setImageUrl] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
-    setDetails(vehicle);
-    setMileageInput(vehicle.mileage.replace(/\D/g, ''));
+    setMake(vehicle.make || '');
+    setModel(vehicle.model || '');
+    setYear(vehicle.year ? String(vehicle.year) : '');
+    setMileageInput(vehicle.mileage ? String(vehicle.mileage).replace(/\D/g, '') : '');
+    setLicensePlate(vehicle.licensePlate || '');
+    setIsSaving(false); // Reset saving state when vehicle changes
   }, [vehicle]);
 
   const [internalVisible, setInternalVisible] = useState(visible);
@@ -78,18 +82,46 @@ export const UpdateCarModal: React.FC<UpdateCarModalProps> = ({
     });
 
     if (!result.canceled && result.assets[0]) {
-      setDetails({ ...details, imageUrl: result.assets[0].uri });
+      setImageUrl(result.assets[0].uri);
     }
   };
 
-  const handleSave = () => {
-    // Format back to string with commas if needed, or pass raw
-    const formattedMileage = Number(mileageInput).toLocaleString() + ' km';
-    onSave({
-      ...details,
-      mileage: formattedMileage,
-    });
-    onClose();
+  const handleSave = async () => {
+    // Prepare update data
+    const updateData: UpdateVehicleRequest = {};
+    
+    if (make !== vehicle.make) updateData.make = make;
+    if (model !== vehicle.model) updateData.model = model;
+    
+    const yearNum = parseInt(year, 10);
+    if (!isNaN(yearNum) && yearNum !== vehicle.year) {
+      updateData.year = yearNum;
+    }
+    
+    const mileageNum = parseInt(mileageInput.replace(/\D/g, ''), 10);
+    if (!isNaN(mileageNum) && mileageNum !== vehicle.mileage) {
+      updateData.mileage = mileageNum;
+    }
+    
+    if (licensePlate !== vehicle.licensePlate) {
+      updateData.licensePlate = licensePlate || undefined;
+    }
+    
+    // Only call onSave if there are actual changes
+    if (Object.keys(updateData).length > 0) {
+      setIsSaving(true);
+      try {
+        await onSave(updateData);
+        // Modal will be closed by the parent component after successful save
+      } catch (error) {
+        console.error('Error saving vehicle:', error);
+        setIsSaving(false);
+        // Keep modal open on error
+      }
+    } else {
+      // No changes, just close the modal
+      onClose();
+    }
   };
 
   if (!internalVisible && !visible) return null;
@@ -109,110 +141,113 @@ export const UpdateCarModal: React.FC<UpdateCarModalProps> = ({
           <View style={StyleSheet.absoluteFill} />
         </TouchableWithoutFeedback>
         <Animated.View style={[styles.sheet, { transform: [{ translateY: slideAnim }] }]}>
-              {/* Header */}
-              <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
-                <View>
-                  <View style={styles.header}>
-                    <Text style={styles.title}>Update Vehicle</Text>
-                    <TouchableOpacity onPress={onClose} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
-                      <X size={24} color={Colors.onSurfaceVariant} strokeWidth={2} />
-                    </TouchableOpacity>
-                  </View>
+          {/* Header */}
+          <View style={styles.header}>
+            <Text style={styles.title}>Update Vehicle</Text>
+            <TouchableOpacity onPress={onClose} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
+              <X size={24} color={Colors.onSurfaceVariant} strokeWidth={2} />
+            </TouchableOpacity>
+          </View>
 
-                  {/* Form */}
-              <View style={styles.form}>
-                
-                <View style={styles.inputGroup}>
-                  <Text style={styles.label}>Car Image</Text>
-                  {details.imageUrl ? (
-                    <TouchableOpacity style={styles.imagePreviewContainer} onPress={handlePickImage} activeOpacity={0.8}>
-                      <Image source={{ uri: details.imageUrl }} style={styles.imagePreview} resizeMode="cover" />
-                      <View style={styles.changeImageOverlay}>
-                        <Camera size={20} color={Colors.surface} strokeWidth={2} />
-                        <Text style={styles.changeImageText}>Change</Text>
-                      </View>
-                    </TouchableOpacity>
-                  ) : (
-                    <TouchableOpacity style={styles.uploadButton} onPress={handlePickImage} activeOpacity={0.8}>
-                      <View style={styles.uploadIconCircle}>
-                        <Camera size={24} color={Colors.primary} strokeWidth={2} />
-                      </View>
-                      <Text style={styles.uploadButtonText}>Upload Car Photo</Text>
-                    </TouchableOpacity>
-                  )}
-                </View>
-
-                <View style={styles.row}>
-                  <View style={[styles.inputGroup, { flex: 1 }]}>
-                    <Text style={styles.label}>Brand</Text>
-                    <TextInput
-                      style={styles.input}
-                      value={details.brand}
-                      onChangeText={(t) => setDetails({ ...details, brand: t })}
-                      placeholder="e.g. Honda"
-                      placeholderTextColor={Colors.outlineVariant}
-                    />
+          {/* Form */}
+          <View style={styles.form}>
+            
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Car Image</Text>
+              {imageUrl ? (
+                <TouchableOpacity style={styles.imagePreviewContainer} onPress={handlePickImage} activeOpacity={0.8}>
+                  <Image source={{ uri: imageUrl }} style={styles.imagePreview} resizeMode="cover" />
+                  <View style={styles.changeImageOverlay}>
+                    <Camera size={20} color={Colors.surface} strokeWidth={2} />
+                    <Text style={styles.changeImageText}>Change</Text>
                   </View>
-                  <View style={[styles.inputGroup, { flex: 1 }]}>
-                    <Text style={styles.label}>Model</Text>
-                    <TextInput
-                      style={styles.input}
-                      value={details.model}
-                      onChangeText={(t) => setDetails({ ...details, model: t })}
-                      placeholder="e.g. Civic"
-                      placeholderTextColor={Colors.outlineVariant}
-                    />
+                </TouchableOpacity>
+              ) : (
+                <TouchableOpacity style={styles.uploadButton} onPress={handlePickImage} activeOpacity={0.8}>
+                  <View style={styles.uploadIconCircle}>
+                    <Camera size={24} color={Colors.primary} strokeWidth={2} />
                   </View>
-                </View>
+                  <Text style={styles.uploadButtonText}>Upload Car Photo</Text>
+                </TouchableOpacity>
+              )}
+            </View>
 
-                <View style={styles.row}>
-                  <View style={[styles.inputGroup, { flex: 1 }]}>
-                    <Text style={styles.label}>Year</Text>
-                    <TextInput
-                      style={styles.input}
-                      value={details.productionYear}
-                      onChangeText={(t) => setDetails({ ...details, productionYear: t })}
-                      keyboardType="numeric"
-                      placeholder="e.g. 2019"
-                      placeholderTextColor={Colors.outlineVariant}
-                    />
-                  </View>
+            <View style={styles.row}>
+              <View style={[styles.inputGroup, { flex: 1 }]}>
+                <Text style={styles.label}>Make</Text>
+                <TextInput
+                  style={styles.input}
+                  value={make}
+                  onChangeText={setMake}
+                  placeholder="e.g. Honda"
+                  placeholderTextColor={Colors.outlineVariant}
+                />
+              </View>
+              <View style={[styles.inputGroup, { flex: 1 }]}>
+                <Text style={styles.label}>Model</Text>
+                <TextInput
+                  style={styles.input}
+                  value={model}
+                  onChangeText={setModel}
+                  placeholder="e.g. Civic"
+                  placeholderTextColor={Colors.outlineVariant}
+                />
+              </View>
+            </View>
 
-                  <View style={[styles.inputGroup, { flex: 1 }]}>
-                    <Text style={styles.label}>Odometer (km)</Text>
-                    <TextInput
-                      style={styles.input}
-                      value={mileageInput}
-                      onChangeText={setMileageInput}
-                      keyboardType="numeric"
-                      placeholder="e.g. 45000"
-                      placeholderTextColor={Colors.outlineVariant}
-                    />
-                  </View>
-                </View>
-
-                <View style={styles.inputGroup}>
-                  <Text style={styles.label}>License Plate</Text>
-                  <TextInput
-                    style={styles.input}
-                    value={details.licensePlate}
-                    onChangeText={(t) => setDetails({ ...details, licensePlate: t })}
-                    autoCapitalize="characters"
-                    placeholder="ABC-1234"
-                    placeholderTextColor={Colors.outlineVariant}
-                  />
-                </View>
+            <View style={styles.row}>
+              <View style={[styles.inputGroup, { flex: 1 }]}>
+                <Text style={styles.label}>Year</Text>
+                <TextInput
+                  style={styles.input}
+                  value={year}
+                  onChangeText={setYear}
+                  keyboardType="numeric"
+                  placeholder="e.g. 2019"
+                  placeholderTextColor={Colors.outlineVariant}
+                />
               </View>
 
-                  {/* Actions */}
-                  <View style={styles.footer}>
-                    <TouchableOpacity style={styles.button} onPress={handleSave} activeOpacity={0.8}>
-                      <Text style={styles.buttonText}>Save Changes</Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              </TouchableWithoutFeedback>
-            </Animated.View>
+              <View style={[styles.inputGroup, { flex: 1 }]}>
+                <Text style={styles.label}>Odometer (km)</Text>
+                <TextInput
+                  style={styles.input}
+                  value={mileageInput}
+                  onChangeText={setMileageInput}
+                  keyboardType="numeric"
+                  placeholder="e.g. 45000"
+                  placeholderTextColor={Colors.outlineVariant}
+                />
+              </View>
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>License Plate</Text>
+              <TextInput
+                style={styles.input}
+                value={licensePlate}
+                onChangeText={setLicensePlate}
+                autoCapitalize="characters"
+                placeholder="ABC-1234"
+                placeholderTextColor={Colors.outlineVariant}
+              />
+            </View>
+          </View>
+
+          {/* Actions */}
+          <View style={styles.footer}>
+            <TouchableOpacity 
+              style={[styles.button, isSaving && styles.buttonDisabled]} 
+              onPress={handleSave} 
+              activeOpacity={0.8}
+              disabled={isSaving}
+            >
+              <Text style={styles.buttonText}>
+                {isSaving ? 'Saving...' : 'Save Changes'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </Animated.View>
       </KeyboardAvoidingView>
     </Modal>
   );
@@ -342,5 +377,8 @@ const styles = StyleSheet.create({
     fontSize: Typography.titleSm,
     fontWeight: Typography.weightBold,
     fontFamily: Typography.fontBody,
+  },
+  buttonDisabled: {
+    backgroundColor: Colors.outlineVariant,
   },
 });

@@ -28,6 +28,8 @@ import { ShopsScreen } from '@/screens/Shops';
 import { MyCarScreen } from '@/screens/MyCar';
 import { SettingsScreen } from '@/screens/Settings';
 import { Colors, Typography } from '@/constants/theme';
+import { AuthProvider } from '@/contexts/AuthContext';
+import { VehicleProvider } from '@/contexts/VehicleContext';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -100,26 +102,30 @@ export default function App() {
   if (!fontsLoaded) return null;
 
   return (
-    <SafeAreaProvider onLayout={onLayoutRootView}>
-      <NavigationContainer
-          theme={{ ...DefaultTheme, colors: { ...DefaultTheme.colors, border: 'transparent' } }}
-        >
-        <StatusBar style="dark" />
-        <Stack.Navigator
-          initialRouteName="OnboardingHealth"
-          screenOptions={{
-            headerShown: false,
-            cardStyle: { backgroundColor: Colors.background },
-          }}
-        >
-          <Stack.Screen name="OnboardingHealth"  component={OnboardingHealthScreen} />
-          <Stack.Screen name="OnboardingDiagnose" component={OnboardingDiagnoseScreen} />
-          <Stack.Screen name="OnboardingShops"   component={OnboardingShopsScreen} />
-          <Stack.Screen name="Auth"              component={AuthScreen} />
-          <Stack.Screen name="AddCar"            component={AddCarScreen} />
-          <Stack.Screen name="MainApp"           component={MainTabs} />
-        </Stack.Navigator>
-      </NavigationContainer>
-    </SafeAreaProvider>
+    <AuthProvider>
+      <VehicleProvider>
+        <SafeAreaProvider onLayout={onLayoutRootView}>
+          <NavigationContainer
+              theme={{ ...DefaultTheme, colors: { ...DefaultTheme.colors, border: 'transparent' } }}
+            >
+            <StatusBar style="dark" />
+            <Stack.Navigator
+              initialRouteName="OnboardingHealth"
+              screenOptions={{
+                headerShown: false,
+                cardStyle: { backgroundColor: Colors.background },
+              }}
+            >
+              <Stack.Screen name="OnboardingHealth"  component={OnboardingHealthScreen} />
+              <Stack.Screen name="OnboardingDiagnose" component={OnboardingDiagnoseScreen} />
+              <Stack.Screen name="OnboardingShops"   component={OnboardingShopsScreen} />
+              <Stack.Screen name="Auth"              component={AuthScreen} />
+              <Stack.Screen name="AddCar"            component={AddCarScreen} />
+              <Stack.Screen name="MainApp"           component={MainTabs} />
+            </Stack.Navigator>
+          </NavigationContainer>
+        </SafeAreaProvider>
+      </VehicleProvider>
+    </AuthProvider>
   );
 }

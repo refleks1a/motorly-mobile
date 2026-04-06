@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -22,26 +22,18 @@ import { SectionHeader } from '@/components/SectionHeader';
 import { MaintenanceCard } from '@/components/MaintenanceCard';
 import { FuelLogCard } from '@/components/FuelLogCard';
 import { UpdateCarModal } from '@/components/UpdateCarModal';
-import { AddMaintenanceModal, MaintenanceRecordInput } from '@/components/AddMaintenanceModal';
+import { AddMaintenanceModal } from '@/components/AddMaintenanceModal';
 import { AddHistoryModal, ServiceRecordInput } from '@/components/AddHistoryModal';
 import { AddFuelLogModal, FuelLogInput } from '@/components/AddFuelLogModal';
 import { FuelLogDetailModal } from '@/components/FuelLogDetailModal';
 import { ServiceHistoryDetailModal } from '@/components/ServiceHistoryDetailModal';
 import { MaintenanceDetailModal, type MaintenanceItem } from '@/components/MaintenanceDetailModal';
+import vehicleService, { CreateMaintenanceItemRequest, UpdateVehicleRequest } from '@/services/vehicle.service';
 import { Colors, Typography, Spacing, Radius, Elevation } from '@/constants/theme';
 import type { ServiceRecord, FuelLog } from '@/types';
+import { useVehicles } from '@/contexts/VehicleContext';
 
 // ───────────────── Mock Data ─────────────────
-
-const INITIAL_VEHICLE = {
-  productionYear: '2019',
-  brand: 'Honda',
-  model: 'Civic',
-  mileage: '45,230 km',
-  healthScore: 85,
-  licensePlate: 'ABC-1234',
-  imageUrl: '',
-};
 
 const TABS = ['Maintenance', 'History', 'Fuel'];
 
@@ -138,22 +130,157 @@ const MOCK_FUEL: FuelLog[] = [
 
 interface Props {
   route?: any;
+  navigation?: any;
 }
 
-export const MyCarScreen: React.FC<Props> = ({ route }) => {
+export const MyCarScreen: React.FC<Props> = ({ route, navigation }) => {
+  const { primaryVehicle, refreshVehicles } = useVehicles();
+  
+  // Refresh vehicles when navigating to this screen
+  useEffect(() => {
+    const unsubscribe = navigation?.addListener('focus', () => {
+      refreshVehicles();
+    });
+    
+    return unsubscribe;
+  }, [navigation, refreshVehicles]);
+
   const initialTab = route?.params?.initialTab || 0;
   const [activeTab, setActiveTab] = useState(initialTab);
-  const [vehicle, setVehicle] = useState(INITIAL_VEHICLE);
   const [isUpdateModalVisible, setIsUpdateModalVisible] = useState(false);
   
-  const [maintenanceItems, setMaintenanceItems] = useState<MaintenanceItem[]>(MOCK_MAINTENANCE);
+  // Use primary vehicle from context
+  const vehicle = primaryVehicle || {
+    id: '',
+    make: 'Unknown',
+    model: 'Unknown',
+    year: 0,
+    mileage: 0,
+    isPrimary: true,
+    userId: '',
+    createdAt: '',
+    updatedAt: '',
+  };
+
+  // Build vehicle display info
+  const name = `${vehicle.year} ${vehicle.make} ${vehicle.model}`;
+  const vehicleMileage = vehicle.mileage ? `${vehicle.mileage.toLocaleString()} km` : '0 km';
+  const healthScore = 85; // Mock health score for now
+  const healthFraction = healthScore / 100;
+
+  // Fetch maintenance items when vehicle is available
+  useEffect(() => {
+    const fetchMaintenanceItems = async () => {
+      if (!vehicle.id) {
+        setMaintenanceItems([]);
+        setIsLoadingMaintenance(false);
+        return;
+      }
+
+      try {
+        setIsLoadingMaintenance(true);
+        const items = await vehicleService.getMaintenanceItems(vehicle.id);
+        
+        // Convert API items to UI format
+        const uiItems: MaintenanceItem[] = items.map(item => ({
+          id: item.id,
+          title: item.name,
+          subtitle: item.notes || item.status.charAt(0).toUpperCase() + item.status.slice(1).replace('_', ' '),
+          status: item.status === 'overdue' || item.status === 'due_soon' ? 'priority' : 
+                 item.status === 'scheduled' ? 'scheduled' : 'good',
+          icon: <Wrench size={22} color={Colors.primary} strokeWidth={2} />,
+        }));
+        
+        setMaintenanceItems(uiItems);
+      } catch (error) {
+        console.error('Failed to fetch maintenance items:', error);
+        setMaintenanceItems([]);
+      } finally {
+        setIsLoadingMaintenance(false);
+      }
+    };
+
+    fetchMaintenanceItems();
+  }, [vehicle.id]);
+
+  // Fetch service records when vehicle is available
+  useEffect(() => {
+    const fetchServiceRecords = async () => {
+      if (!vehicle.id) {
+        setHistoryItems([]);
+        setIsLoadingHistory(false);
+        return;
+      }
+
+      try {
+        setIsLoadingHistory(true);
+        const records = await vehicleService.getServiceRecords(vehicle.id);
+        
+        // Convert API records to UI format (matching ServiceRecord interface)
+        const uiRecords: ServiceRecord[] = records.map(record => ({
+          id: record.id,
+          vehicleId: record.vehicleId,
+          serviceType: record.serviceType,
+          date: record.date,
+          mileageAtService: record.mileageAtService,
+          shopName: record.shopName,
+          cost: record.cost,
+          currency: record.currency,
+          receiptUri: record.receiptUrl,
+          createdAt: record.createdAt,
+          updatedAt: record.updatedAt
+        }));
+        
+        setHistoryItems(uiRecords);
+      } catch (error) {
+        console.error('Failed to fetch service records:', error);
+        setHistoryItems([]);
+      } finally {
+        setIsLoadingHistory(false);
+      }
+    };
+
+    fetchServiceRecords();
+  }, [vehicle.id]);
+
+  // Fetch fuel logs when vehicle is available
+  useEffect(() => {
+    const fetchFuelLogs = async () => {
+      if (!vehicle.id) {
+        setFuelItems([]);
+        setIsLoadingFuel(false);
+        return;
+      }
+
+      try {
+        setIsLoadingFuel(true);
+        const logs = await vehicleService.getFuelLogs(vehicle.id);
+        
+        // API returns FuelLog[] directly (no conversion needed)
+        setFuelItems(logs);
+      } catch (error) {
+        console.error('Failed to fetch fuel logs:', error);
+        setFuelItems([]);
+      } finally {
+        setIsLoadingFuel(false);
+      }
+    };
+
+    fetchFuelLogs();
+  }, [vehicle.id]);
+  
+  // Maintenance, history, and fuel state
+  const [maintenanceItems, setMaintenanceItems] = useState<MaintenanceItem[]>([]);
   const [isAddMaintenanceModalVisible, setIsAddMaintenanceModalVisible] = useState(false);
+  const [isLoadingMaintenance, setIsLoadingMaintenance] = useState(true);
 
-  const [historyItems, setHistoryItems] = useState(MOCK_HISTORY);
+  const [historyItems, setHistoryItems] = useState<ServiceRecord[]>([]);
   const [isAddHistoryModalVisible, setIsAddHistoryModalVisible] = useState(false);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(true);
 
-  const [fuelItems, setFuelItems] = useState(MOCK_FUEL);
+  const [fuelItems, setFuelItems] = useState<FuelLog[]>([]);
   const [isAddFuelLogModalVisible, setIsAddFuelLogModalVisible] = useState(false);
+  const [isLoadingFuel, setIsLoadingFuel] = useState(true);
   
   // Fuel log detail modal state
   const [selectedFuelLog, setSelectedFuelLog] = useState<FuelLog | null>(null);
@@ -167,33 +294,90 @@ export const MyCarScreen: React.FC<Props> = ({ route }) => {
   const [selectedMaintenanceItem, setSelectedMaintenanceItem] = useState<MaintenanceItem | null>(null);
   const [isMaintenanceDetailModalVisible, setIsMaintenanceDetailModalVisible] = useState(false);
 
-  const { productionYear, brand, model, mileage, healthScore, licensePlate, imageUrl } = vehicle;
-  const name = `${productionYear} ${brand} ${model}`;
-  const healthFraction = healthScore / 100;
-
-  const handleSaveCarDetails = (newDetails: Partial<typeof INITIAL_VEHICLE>) => {
-    setVehicle(prev => ({
-      ...prev,
-      ...newDetails,
-    }));
+  // Handler for saving vehicle details
+  const handleSaveCarDetails = async (updateData: UpdateVehicleRequest) => {
+    try {
+      if (!vehicle.id) {
+        console.error('Cannot update vehicle: No vehicle ID');
+        return;
+      }
+      
+      // Call the API to update the vehicle
+      await vehicleService.updateVehicle(vehicle.id, updateData);
+      
+      // Refresh the vehicle data from the context
+      await refreshVehicles();
+      
+      // Close the modal
+      setIsUpdateModalVisible(false);
+      
+      console.log('Vehicle updated successfully');
+    } catch (error) {
+      console.error('Failed to update vehicle:', error);
+      // Keep the modal open so user can try again
+      // In a production app, you might want to show an error message to the user
+    }
   };
-
-  // Fuel log handlers
   const handleFuelLogPress = (log: FuelLog) => {
     setSelectedFuelLog(log);
     setIsFuelLogDetailModalVisible(true);
   };
 
-  const handleDeleteFuelLog = (id: string) => {
-    setFuelItems(prev => prev.filter(log => log.id !== id));
+  const handleDeleteFuelLog = async (id: string) => {
+    try {
+      if (!vehicle.id) {
+        console.error('Cannot delete fuel log: No vehicle ID');
+        return;
+      }
+      
+      // Call the API to delete the fuel log
+      await vehicleService.deleteFuelLog(vehicle.id, id);
+      
+      // Update the UI by removing the deleted log
+      setFuelItems(prev => prev.filter(log => log.id !== id));
+      
+      console.log('Fuel log deleted successfully');
+    } catch (error) {
+      console.error('Failed to delete fuel log:', error);
+      // In a production app, you might want to show an error message to the user
+    }
   };
 
-  const handleUpdateFuelLog = (id: string, updatedLog: FuelLog) => {
-    setFuelItems(prev => 
-      prev.map(log => log.id === id ? updatedLog : log)
-    );
-    setSelectedFuelLog(null);
-    setIsFuelLogDetailModalVisible(false);
+  const handleUpdateFuelLog = async (id: string, updatedLog: FuelLog) => {
+    try {
+      if (!vehicle.id) {
+        console.error('Cannot update fuel log: No vehicle ID');
+        return;
+      }
+      
+      // Prepare the update data
+      const updateData = {
+        date: updatedLog.date,
+        fuelAmount: updatedLog.liters, // Assuming liters is the fuel amount
+        fuelUnit: 'liters' as const, // Assuming liters since backend stores in liters
+        pricePerUnit: updatedLog.costPerLiter,
+        totalCost: updatedLog.totalCost,
+        mileageAtFill: updatedLog.mileageAtFill,
+        station: updatedLog.station,
+      };
+      
+      // Call the API to update the fuel log
+      const updatedApiLog = await vehicleService.updateFuelLog(vehicle.id, id, updateData);
+      
+      // Update the UI with the updated log
+      setFuelItems(prev => 
+        prev.map(log => log.id === id ? updatedApiLog : log)
+      );
+      
+      setSelectedFuelLog(null);
+      setIsFuelLogDetailModalVisible(false);
+      
+      console.log('Fuel log updated successfully');
+    } catch (error) {
+      console.error('Failed to update fuel log:', error);
+      // Keep the modal open so user can try again
+      // In a production app, you might want to show an error message to the user
+    }
   };
 
   // Service record handlers
@@ -202,16 +386,61 @@ export const MyCarScreen: React.FC<Props> = ({ route }) => {
     setIsServiceHistoryDetailModalVisible(true);
   };
 
-  const handleDeleteServiceRecord = (id: string) => {
-    setHistoryItems(prev => prev.filter(record => record.id !== id));
+  const handleDeleteServiceRecord = async (id: string) => {
+    try {
+      if (!vehicle.id) {
+        console.error('Cannot delete service record: No vehicle ID');
+        return;
+      }
+      
+      // Call the API to delete the service record
+      await vehicleService.deleteServiceRecord(vehicle.id, id);
+      
+      // Update the UI by removing the deleted record
+      setHistoryItems(prev => prev.filter(record => record.id !== id));
+      
+      console.log('Service record deleted successfully');
+    } catch (error) {
+      console.error('Failed to delete service record:', error);
+      // In a production app, you might want to show an error message to the user
+    }
   };
 
-  const handleUpdateServiceRecord = (id: string, updatedRecord: ServiceRecord) => {
-    setHistoryItems(prev => 
-      prev.map(record => record.id === id ? updatedRecord : record)
-    );
-    setSelectedServiceRecord(null);
-    setIsServiceHistoryDetailModalVisible(false);
+  const handleUpdateServiceRecord = async (id: string, updatedRecord: ServiceRecord) => {
+    try {
+      if (!vehicle.id) {
+        console.error('Cannot update service record: No vehicle ID');
+        return;
+      }
+      
+      // Prepare the update data (only include fields that can be updated)
+      const updateData = {
+        serviceType: updatedRecord.serviceType,
+        date: updatedRecord.date,
+        mileageAtService: updatedRecord.mileageAtService,
+        shopName: updatedRecord.shopName,
+        cost: updatedRecord.cost,
+        currency: updatedRecord.currency,
+        receiptUrl: updatedRecord.receiptUri, // Map receiptUri to receiptUrl for API
+      };
+      
+      // Call the API to update the service record
+      const updatedApiRecord = await vehicleService.updateServiceRecord(vehicle.id, id, updateData);
+      
+      // Update the UI with the updated record
+      setHistoryItems(prev => 
+        prev.map(record => record.id === id ? updatedApiRecord : record)
+      );
+      
+      setSelectedServiceRecord(null);
+      setIsServiceHistoryDetailModalVisible(false);
+      
+      console.log('Service record updated successfully');
+    } catch (error) {
+      console.error('Failed to update service record:', error);
+      // Keep the modal open so user can try again
+      // In a production app, you might want to show an error message to the user
+    }
   };
 
   // Maintenance handlers
@@ -220,16 +449,68 @@ export const MyCarScreen: React.FC<Props> = ({ route }) => {
     setIsMaintenanceDetailModalVisible(true);
   };
 
-  const handleDeleteMaintenanceItem = (id: string) => {
-    setMaintenanceItems(prev => prev.filter(item => item.id !== id));
+  const handleDeleteMaintenanceItem = async (id: string) => {
+    try {
+      if (!vehicle.id) {
+        console.error('Cannot delete maintenance item: No vehicle ID');
+        return;
+      }
+      
+      // Call the API to delete the maintenance item
+      await vehicleService.deleteMaintenanceItem(vehicle.id, id);
+      
+      // Update the UI by removing the deleted item
+      setMaintenanceItems(prev => prev.filter(item => item.id !== id));
+      
+      console.log('Maintenance item deleted successfully');
+    } catch (error) {
+      console.error('Failed to delete maintenance item:', error);
+      // In a production app, you might want to show an error message to the user
+    }
   };
 
-  const handleUpdateMaintenanceItem = (id: string, updatedItem: MaintenanceItem) => {
-    setMaintenanceItems(prev => 
-      prev.map(item => item.id === id ? updatedItem : item)
-    );
-    setSelectedMaintenanceItem(null);
-    setIsMaintenanceDetailModalVisible(false);
+  const handleUpdateMaintenanceItem = async (id: string, updatedItem: MaintenanceItem) => {
+    try {
+      if (!vehicle.id) {
+        console.error('Cannot update maintenance item: No vehicle ID');
+        return;
+      }
+      
+      // Convert UI item to API format
+      const apiData = {
+        name: updatedItem.title,
+        status: (updatedItem.status === 'priority' ? 'due_soon' : 
+                updatedItem.status === 'scheduled' ? 'scheduled' : 'good') as 'overdue' | 'due_soon' | 'scheduled' | 'good',
+        notes: updatedItem.subtitle,
+      };
+      
+      // Call the API to update the maintenance item
+      const updatedApiItem = await vehicleService.updateMaintenanceItem(vehicle.id, id, apiData);
+      
+      // Convert API response back to UI format
+      const uiUpdatedItem: MaintenanceItem = {
+        id: updatedApiItem.id,
+        title: updatedApiItem.name,
+        subtitle: updatedApiItem.notes || updatedApiItem.status.charAt(0).toUpperCase() + updatedApiItem.status.slice(1).replace('_', ' '),
+        status: updatedApiItem.status === 'overdue' || updatedApiItem.status === 'due_soon' ? 'priority' : 
+                updatedApiItem.status === 'scheduled' ? 'scheduled' : 'good',
+        icon: <Wrench size={22} color={Colors.primary} strokeWidth={2} />,
+      };
+      
+      // Update the UI with the updated item
+      setMaintenanceItems(prev => 
+        prev.map(item => item.id === id ? uiUpdatedItem : item)
+      );
+      
+      setSelectedMaintenanceItem(null);
+      setIsMaintenanceDetailModalVisible(false);
+      
+      console.log('Maintenance item updated successfully');
+    } catch (error) {
+      console.error('Failed to update maintenance item:', error);
+      // Keep the modal open so user can try again
+      // In a production app, you might want to show an error message to the user
+    }
   };
 
   const renderEmptyState = (icon: React.ReactNode, message: string) => (
@@ -357,7 +638,7 @@ export const MyCarScreen: React.FC<Props> = ({ route }) => {
             <View style={styles.vehicleTitleArea}>
               <Text style={styles.vehicleName}>{name}</Text>
               <View style={styles.licenseBadge}>
-                <Text style={styles.licenseText}>{licensePlate}</Text>
+                <Text style={styles.licenseText}>{vehicle.licensePlate || 'N/A'}</Text>
               </View>
             </View>
             <TouchableOpacity style={styles.iconButton} activeOpacity={0.7} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} onPress={() => setIsUpdateModalVisible(true)}>
@@ -368,14 +649,10 @@ export const MyCarScreen: React.FC<Props> = ({ route }) => {
           <View style={styles.vehicleBody}>
             <View style={styles.odometerInfo}>
               <Text style={styles.odometerLabel}>CURRENT ODOMETER</Text>
-              <Text style={styles.odometerValue}>{mileage}</Text>
+              <Text style={styles.odometerValue}>{vehicleMileage}</Text>
             </View>
-            <View style={[styles.carImagePlaceholder, imageUrl ? styles.carImageFilled : null]}>
-              {imageUrl ? (
-                <Image source={{ uri: imageUrl }} style={styles.carImage} resizeMode="cover" />
-              ) : (
-                <Car size={32} color={Colors.outlineVariant} strokeWidth={1.5} />
-              )}
+            <View style={[styles.carImagePlaceholder]}>
+              <Car size={32} color={Colors.outlineVariant} strokeWidth={1.5} />
             </View>
           </View>
         </View>
@@ -401,46 +678,118 @@ export const MyCarScreen: React.FC<Props> = ({ route }) => {
       <AddMaintenanceModal
         visible={isAddMaintenanceModalVisible}
         onClose={() => setIsAddMaintenanceModalVisible(false)}
-        onSave={(newRecord: MaintenanceRecordInput) => {
-          const newItem = {
-            ...newRecord,
-            id: String(Date.now()),
-            icon: <Wrench size={22} color={Colors.primary} strokeWidth={2} />,
-          };
-          setMaintenanceItems((prev) => [newItem, ...prev]);
+        onSave={async (maintenanceData: CreateMaintenanceItemRequest) => {
+          try {
+            if (!vehicle.id) {
+              console.error('Cannot create maintenance item: No vehicle ID');
+              return;
+            }
+            
+            // Call the API to create the maintenance item
+            const newItem = await vehicleService.createMaintenanceItem(vehicle.id, maintenanceData);
+            
+            // Convert the API response to the format expected by the UI
+            const uiItem: MaintenanceItem = {
+              id: newItem.id,
+              title: newItem.name,
+              subtitle: newItem.notes || newItem.status.charAt(0).toUpperCase() + newItem.status.slice(1).replace('_', ' '),
+              status: newItem.status === 'overdue' || newItem.status === 'due_soon' ? 'priority' : 
+                     newItem.status === 'scheduled' ? 'scheduled' : 'good',
+              icon: <Wrench size={22} color={Colors.primary} strokeWidth={2} />,
+            };
+            
+            // Update the UI with the new item
+            setMaintenanceItems((prev) => [uiItem, ...prev]);
+            
+            // Close the modal
+            setIsAddMaintenanceModalVisible(false);
+            
+            console.log('Maintenance item created successfully');
+          } catch (error) {
+            console.error('Failed to create maintenance item:', error);
+            // Keep the modal open so user can try again
+            // The modal will handle resetting the saving state
+            throw error; // Re-throw so the modal knows the save failed
+          }
         }}
       />
 
       <AddHistoryModal
         visible={isAddHistoryModalVisible}
         onClose={() => setIsAddHistoryModalVisible(false)}
-        onSave={(newRecord: ServiceRecordInput) => {
-          const newItem = {
-            ...newRecord,
-            id: String(Date.now()),
-            vehicleId: 'v1',
-            currency: newRecord.currency || 'AZN', // Ensure currency is included
-          };
-          setHistoryItems((prev) => [newItem, ...prev].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
+        onSave={async (newRecord: ServiceRecordInput) => {
+          try {
+            if (!vehicle.id) {
+              console.error('Cannot create service record: No vehicle ID');
+              return;
+            }
+            
+            // Convert ServiceRecordInput to API format
+            const serviceData = {
+              serviceType: newRecord.serviceType,
+              date: newRecord.date,
+              mileageAtService: newRecord.mileageAtService,
+              shopName: newRecord.shopName,
+              cost: newRecord.cost,
+              currency: newRecord.currency || 'AZN',
+            };
+            
+            // Call the API to create the service record
+            const newItem = await vehicleService.createServiceRecord(vehicle.id, serviceData);
+            
+            // Update the UI with the new record
+            setHistoryItems((prev) => [newItem, ...prev].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
+            
+            // Close the modal
+            setIsAddHistoryModalVisible(false);
+            
+            console.log('Service record created successfully');
+          } catch (error) {
+            console.error('Failed to create service record:', error);
+            // Keep the modal open so user can try again
+            // The modal will handle resetting the saving state
+            throw error; // Re-throw so the modal knows the save failed
+          }
         }}
       />
 
       <AddFuelLogModal
         visible={isAddFuelLogModalVisible}
         onClose={() => setIsAddFuelLogModalVisible(false)}
-        onSave={(newRecord: FuelLogInput) => {
-          // Convert FuelLogInput to FuelLog type
-          const newItem: FuelLog = {
-            id: String(Date.now()),
-            vehicleId: 'v1',
-            date: newRecord.date || new Date().toISOString().split('T')[0], // Use provided date or today
-            liters: newRecord.fuelUnit === 'liters' ? newRecord.fuelAmount : newRecord.fuelAmount * 3.78541, // Convert gallons to liters
-            costPerLiter: newRecord.pricePerUnit || 0,
-            totalCost: newRecord.totalCost,
-            mileageAtFill: 0, // Odometer removed, use 0 as placeholder
-            station: newRecord.stationName,
-          };
-          setFuelItems((prev) => [newItem, ...prev].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
+        onSave={async (newRecord: FuelLogInput) => {
+          try {
+            if (!vehicle.id) {
+              console.error('Cannot create fuel log: No vehicle ID');
+              return;
+            }
+            
+            // Convert FuelLogInput to API format
+            const fuelData = {
+              date: newRecord.date || new Date().toISOString().split('T')[0],
+              fuelAmount: newRecord.fuelAmount,
+              fuelUnit: newRecord.fuelUnit,
+              pricePerUnit: newRecord.pricePerUnit || 0,
+              totalCost: newRecord.totalCost,
+              mileageAtFill: vehicle.mileage || 0, // Use vehicle's current mileage
+              station: newRecord.stationName,
+            };
+            
+            // Call the API to create the fuel log
+            const newItem = await vehicleService.createFuelLog(vehicle.id, fuelData);
+            
+            // Update the UI with the new log
+            setFuelItems((prev) => [newItem, ...prev].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
+            
+            // Close the modal
+            setIsAddFuelLogModalVisible(false);
+            
+            console.log('Fuel log created successfully');
+          } catch (error) {
+            console.error('Failed to create fuel log:', error);
+            // Keep the modal open so user can try again
+            // The modal will handle resetting the saving state
+            throw error; // Re-throw so the modal knows the save failed
+          }
         }}
       />
 

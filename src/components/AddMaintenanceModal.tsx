@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import { X } from 'lucide-react-native';
 import { Colors, Typography, Spacing, Radius } from '@/constants/theme';
+import { CreateMaintenanceItemRequest } from '@/services/vehicle.service';
 
 export interface MaintenanceRecordInput {
   title: string;
@@ -24,7 +25,7 @@ export interface MaintenanceRecordInput {
 interface AddMaintenanceModalProps {
   visible: boolean;
   onClose: () => void;
-  onSave: (record: MaintenanceRecordInput) => void;
+  onSave: (record: CreateMaintenanceItemRequest) => Promise<void> | void;
 }
 
 export const AddMaintenanceModal: React.FC<AddMaintenanceModalProps> = ({
@@ -32,9 +33,10 @@ export const AddMaintenanceModal: React.FC<AddMaintenanceModalProps> = ({
   onClose,
   onSave,
 }) => {
-  const [title, setTitle] = useState('');
+  const [name, setName] = useState('');
   const [subtitle, setSubtitle] = useState('');
-  const [status, setStatus] = useState<'scheduled' | 'priority' | 'good'>('scheduled');
+  const [status, setStatus] = useState<'overdue' | 'due_soon' | 'scheduled' | 'good'>('scheduled');
+  const [isSaving, setIsSaving] = useState(false);
 
   const [internalVisible, setInternalVisible] = useState(visible);
   const slideAnim = useRef(new Animated.Value(600)).current;
@@ -42,9 +44,10 @@ export const AddMaintenanceModal: React.FC<AddMaintenanceModalProps> = ({
   // Reset form when opened
   useEffect(() => {
     if (visible) {
-      setTitle('');
+      setName('');
       setSubtitle('');
       setStatus('scheduled');
+      setIsSaving(false);
       
       setInternalVisible(true);
       Animated.timing(slideAnim, {
@@ -63,15 +66,24 @@ export const AddMaintenanceModal: React.FC<AddMaintenanceModalProps> = ({
     }
   }, [visible, slideAnim]);
 
-  const handleSave = () => {
-    if (!title.trim()) return;
+  const handleSave = async () => {
+    if (!name.trim()) return;
     
-    onSave({
-      title: title.trim(),
-      subtitle: subtitle.trim(),
+    const maintenanceData: CreateMaintenanceItemRequest = {
+      name: name.trim(),
       status,
-    });
-    onClose();
+      notes: subtitle.trim() || undefined, // Use subtitle as notes
+    };
+    
+    setIsSaving(true);
+    try {
+      await onSave(maintenanceData);
+      // Modal will be closed by parent after successful save
+    } catch (error) {
+      console.error('Error saving maintenance item:', error);
+      setIsSaving(false);
+      // Keep modal open on error
+    }
   };
 
   if (!internalVisible && !visible) return null;
@@ -92,81 +104,80 @@ export const AddMaintenanceModal: React.FC<AddMaintenanceModalProps> = ({
         </TouchableWithoutFeedback>
         
         <Animated.View style={[styles.sheet, { transform: [{ translateY: slideAnim }] }]}>
-          <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
-            <View>
-              {/* Header */}
-              <View style={styles.header}>
-                <Text style={styles.titleText}>Add Maintenance</Text>
-                <TouchableOpacity onPress={onClose} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
-                  <X size={24} color={Colors.onSurfaceVariant} strokeWidth={2} />
-                </TouchableOpacity>
-              </View>
+          {/* Header */}
+          <View style={styles.header}>
+            <Text style={styles.titleText}>Add Maintenance</Text>
+            <TouchableOpacity onPress={onClose} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
+              <X size={24} color={Colors.onSurfaceVariant} strokeWidth={2} />
+            </TouchableOpacity>
+          </View>
 
-              {/* Form */}
-              <View style={styles.form}>
-                <View style={styles.inputGroup}>
-                  <Text style={styles.label}>Service Name</Text>
-                  <TextInput
-                    style={styles.input}
-                    value={title}
-                    onChangeText={setTitle}
-                    placeholder="e.g. Oil Change"
-                    placeholderTextColor={Colors.outlineVariant}
-                  />
-                </View>
+          {/* Form */}
+          <View style={styles.form}>
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Service Name</Text>
+              <TextInput
+                style={styles.input}
+                value={name}
+                onChangeText={setName}
+                placeholder="e.g. Oil Change"
+                placeholderTextColor={Colors.outlineVariant}
+                autoFocus={true}
+              />
+            </View>
 
-                <View style={styles.inputGroup}>
-                  <Text style={styles.label}>Due / Subtitle</Text>
-                  <TextInput
-                    style={styles.input}
-                    value={subtitle}
-                    onChangeText={setSubtitle}
-                    placeholder="e.g. Due in 500 km"
-                    placeholderTextColor={Colors.outlineVariant}
-                  />
-                </View>
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Due / Subtitle</Text>
+              <TextInput
+                style={styles.input}
+                value={subtitle}
+                onChangeText={setSubtitle}
+                placeholder="e.g. Due in 500 km"
+                placeholderTextColor={Colors.outlineVariant}
+              />
+            </View>
 
-                <View style={styles.inputGroup}>
-                  <Text style={styles.label}>Priority Status</Text>
-                  <View style={styles.statusChipsContainer}>
-                    {(['scheduled', 'priority', 'good'] as const).map((s) => (
-                      <TouchableOpacity
-                        key={s}
-                        style={[
-                          styles.statusChip,
-                          status === s && styles.statusChipActive,
-                        ]}
-                        onPress={() => setStatus(s)}
-                        activeOpacity={0.8}
-                      >
-                        <Text
-                          style={[
-                            styles.statusChipText,
-                            status === s && styles.statusChipTextActive,
-                          ]}
-                        >
-                          {s.charAt(0).toUpperCase() + s.slice(1)}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                </View>
-
-              </View>
-
-              {/* Actions */}
-              <View style={styles.footer}>
-                <TouchableOpacity 
-                  style={[styles.button, !title.trim() && styles.buttonDisabled]} 
-                  onPress={handleSave} 
-                  activeOpacity={0.8}
-                  disabled={!title.trim()}
-                >
-                  <Text style={styles.buttonText}>Save</Text>
-                </TouchableOpacity>
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Status</Text>
+              <View style={styles.statusChipsContainer}>
+                {(['overdue', 'due_soon', 'scheduled', 'good'] as const).map((s) => (
+                  <TouchableOpacity
+                    key={s}
+                    style={[
+                      styles.statusChip,
+                      status === s && styles.statusChipActive,
+                    ]}
+                    onPress={() => setStatus(s)}
+                    activeOpacity={0.8}
+                  >
+                    <Text
+                      style={[
+                        styles.statusChipText,
+                        status === s && styles.statusChipTextActive,
+                      ]}
+                    >
+                      {s.charAt(0).toUpperCase() + s.slice(1).replace('_', ' ')}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
               </View>
             </View>
-          </TouchableWithoutFeedback>
+
+          </View>
+
+          {/* Actions */}
+          <View style={styles.footer}>
+            <TouchableOpacity 
+              style={[styles.button, (!name.trim() || isSaving) && styles.buttonDisabled]} 
+              onPress={handleSave} 
+              activeOpacity={0.8}
+              disabled={!name.trim() || isSaving}
+            >
+              <Text style={styles.buttonText}>
+                {isSaving ? 'Saving...' : 'Save'}
+              </Text>
+            </TouchableOpacity>
+          </View>
         </Animated.View>
       </KeyboardAvoidingView>
     </Modal>

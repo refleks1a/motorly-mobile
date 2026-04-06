@@ -5,6 +5,8 @@ import {
   StyleSheet,
   ViewStyle,
   TextStyle,
+  ActivityIndicator,
+  View,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Colors, Typography, Button, Radius } from '@/constants/theme';
@@ -15,6 +17,7 @@ interface PrimaryButtonProps {
   style?: ViewStyle;
   textStyle?: TextStyle;
   disabled?: boolean;
+  loading?: boolean;
 }
 
 export const PrimaryButton: React.FC<PrimaryButtonProps> = ({
@@ -23,21 +26,33 @@ export const PrimaryButton: React.FC<PrimaryButtonProps> = ({
   style,
   textStyle,
   disabled = false,
+  loading = false,
 }) => {
+  const isButtonDisabled = disabled || loading;
+
   return (
     <TouchableOpacity
       onPress={onPress}
       activeOpacity={0.85}
-      disabled={disabled}
+      disabled={isButtonDisabled}
       style={[styles.container, style]}
     >
       <LinearGradient
         colors={[Colors.primary, Colors.primaryContainer]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
-        style={[styles.gradient, disabled && styles.disabled]}
+        style={[styles.gradient, isButtonDisabled && styles.disabled]}
       >
-        <Text style={[styles.text, textStyle]}>{title}</Text>
+        {loading ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="small" color={Colors.onPrimary} />
+            <Text style={[styles.text, textStyle, styles.loadingText]}>
+              {title}
+            </Text>
+          </View>
+        ) : (
+          <Text style={[styles.text, textStyle]}>{title}</Text>
+        )}
       </LinearGradient>
     </TouchableOpacity>
   );
@@ -62,5 +77,14 @@ const styles = StyleSheet.create({
     fontFamily: Typography.fontBody,
     fontWeight: Typography.weightSemiBold,
     letterSpacing: 0.3,
+  },
+  loadingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  loadingText: {
+    marginLeft: 8,
   },
 });

@@ -10,17 +10,22 @@ import {
   ScrollView,
   Modal,
   TextInput,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Mail, Lock, Eye, EyeOff, CheckCircle, XCircle } from 'lucide-react-native';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { Colors, Typography, Spacing, Radius } from '@/constants/theme';
+import { useAuth } from '@/contexts/AuthContext';
+import { useVehicles } from '@/contexts/VehicleContext';
 
 interface Props {
   navigation: any;
 }
 
 export const AuthScreen: React.FC<Props> = ({ navigation }) => {
+  const { login, register, isLoading } = useAuth();
+  const { refreshVehicles } = useVehicles();
   const [isSignUp, setIsSignUp] = useState(false);
   const [isForgotPassword, setIsForgotPassword] = useState(false);
   const [forgotPasswordStep, setForgotPasswordStep] = useState<'email' | 'reset'>('email');
@@ -45,6 +50,7 @@ export const AuthScreen: React.FC<Props> = ({ navigation }) => {
   const [showPopup, setShowPopup] = useState(false);
   const [popupMessage, setPopupMessage] = useState('');
   const [popupType, setPopupType] = useState<'success' | 'error'>('success');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const validateEmail = (email: string): boolean => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -68,7 +74,7 @@ export const AuthScreen: React.FC<Props> = ({ navigation }) => {
     setTimeout(() => setShowPopup(false), 3000);
   };
 
-  const handleSignIn = () => {
+  const handleSignIn = async () => {
     const email = signInEmail;
     const password = signInPassword;
     
@@ -85,14 +91,30 @@ export const AuthScreen: React.FC<Props> = ({ navigation }) => {
       return;
     }
 
-    // Mock successful sign in
-    showNotification('Signed in successfully!', 'success');
-    setTimeout(() => {
-      navigation.navigate('AddCar');
-    }, 1500);
+    try {
+      setIsSubmitting(true);
+      await login(email, password);
+      showNotification('Signed in successfully!', 'success');
+      
+      // Refresh vehicles to get the latest user's vehicles
+      const userVehicles = await refreshVehicles();
+      
+      setTimeout(() => {
+        // Check if user has any vehicles
+        if (userVehicles && userVehicles.length > 0) {
+          navigation.navigate('MainApp');
+        } else {
+          navigation.navigate('AddCar');
+        }
+      }, 1500);
+    } catch (error: any) {
+      showNotification(error.message || 'Login failed. Please try again.', 'error');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
-  const handleSignUp = () => {
+  const handleSignUp = async () => {
     const email = signUpEmail;
     const password = signUpPassword;
     
@@ -116,14 +138,32 @@ export const AuthScreen: React.FC<Props> = ({ navigation }) => {
       return;
     }
 
-    // Mock successful sign up
-    showNotification('Account created successfully!', 'success');
-    setTimeout(() => {
-      setIsSignUp(false);
-      setSignUpEmail('');
-      setSignUpPassword('');
-      setConfirmPassword('');
-    }, 1500);
+    try {
+      setIsSubmitting(true);
+      await register(email, password);
+      showNotification('Account created successfully!', 'success');
+      
+      // Refresh vehicles for newly created account
+      const userVehicles = await refreshVehicles();
+      
+      setTimeout(() => {
+        setIsSignUp(false);
+        setSignUpEmail('');
+        setSignUpPassword('');
+        setConfirmPassword('');
+        
+        // Check if user has any vehicles (new users should have none)
+        if (userVehicles && userVehicles.length > 0) {
+          navigation.navigate('MainApp');
+        } else {
+          navigation.navigate('AddCar');
+        }
+      }, 1500);
+    } catch (error: any) {
+      showNotification(error.message || 'Registration failed. Please try again.', 'error');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleSocialAuth = (provider: 'google' | 'facebook') => {
@@ -519,6 +559,7 @@ export const AuthScreen: React.FC<Props> = ({ navigation }) => {
             title={isSignUp ? 'Sign Up' : 'Sign In'}
             onPress={isSignUp ? handleSignUp : handleSignIn}
             disabled={isSignUp ? !isSignUpValid : !isSignInValid}
+            loading={isSubmitting}
             style={styles.submitButton}
           />
 

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import {
   View,
   Text,
@@ -9,26 +9,62 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Car } from 'lucide-react-native';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { Colors, Typography, Spacing, Radius } from '@/constants/theme';
+import vehicleService from '@/services/vehicle.service';
+import { useVehicles } from '@/contexts/VehicleContext';
 
 interface Props {
   navigation: any;
 }
 
 export const AddCarScreen: React.FC<Props> = ({ navigation }) => {
+  const { refreshVehicles } = useVehicles();
   const [make, setMake] = useState('');
   const [model, setModel] = useState('');
   const [year, setYear] = useState('');
   const [mileage, setMileage] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const isFormValid = make.trim() && model.trim() && year.trim();
 
-  const handleContinue = () => {
-    // TODO: Save car data to state/storage
+  const handleContinue = async () => {
+    if (!isFormValid) return;
+
+    try {
+      setIsSubmitting(true);
+      
+      const vehicleData = {
+        make: make.trim(),
+        model: model.trim(),
+        year: parseInt(year.trim(), 10),
+        mileage: mileage.trim() ? parseInt(mileage.trim().replace(/,/g, ''), 10) : undefined,
+      };
+
+      await vehicleService.createVehicle(vehicleData);
+      
+      // Refresh vehicles to update the context
+      await refreshVehicles();
+      
+      // Navigate to main app after successful creation
+      navigation.navigate('MainApp');
+    } catch (error: any) {
+      Alert.alert(
+        'Error',
+        error.message || 'Failed to add vehicle. Please try again.',
+        [{ text: 'OK' }]
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleSkip = () => {
+    // Navigate to main app without adding a vehicle
     navigation.navigate('MainApp');
   };
 
@@ -130,10 +166,11 @@ export const AddCarScreen: React.FC<Props> = ({ navigation }) => {
             title="CONTINUE"
             onPress={handleContinue}
             disabled={!isFormValid}
+            loading={isSubmitting}
           />
 
           <TouchableOpacity
-            onPress={handleContinue}
+            onPress={handleSkip}
             style={styles.laterButton}
           >
             <Text style={styles.laterText}>I'll do this later</Text>
