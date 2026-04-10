@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -24,12 +24,13 @@ interface Props {
   text: string;
   timestamp?: string;
   diagnosisCard?: DiagnosisCardData;
+  isLoading?: boolean;
 }
 
 const MENU_WIDTH = 150;
 const SCREEN_HEIGHT = Dimensions.get('window').height;
 
-export const AiMessage: React.FC<Props> = ({ text, timestamp, diagnosisCard }) => {
+export const AiMessage: React.FC<Props> = ({ text, timestamp, diagnosisCard, isLoading = false }) => {
   const bubbleRef = useRef<View>(null);
   const [menuVisible, setMenuVisible] = useState(false);
   const [menuTop, setMenuTop] = useState(0);
@@ -57,6 +58,22 @@ export const AiMessage: React.FC<Props> = ({ text, timestamp, diagnosisCard }) =
 
   const menuLeft = Spacing.xxl + 36 + Spacing.md; // avatar width + gap
 
+  // Loading dots animation state
+  const [dots, setDots] = useState('');
+
+  useEffect(() => {
+    if (!isLoading) return;
+
+    const interval = setInterval(() => {
+      setDots(prev => {
+        if (prev.length >= 3) return '';
+        return prev + '.';
+      });
+    }, 500);
+
+    return () => clearInterval(interval);
+  }, [isLoading]);
+
   return (
     <>
       <View style={styles.row}>
@@ -66,16 +83,29 @@ export const AiMessage: React.FC<Props> = ({ text, timestamp, diagnosisCard }) =
 
         <Pressable
           style={styles.bubbleWrapper}
-          onLongPress={handleLongPress}
+          onLongPress={isLoading ? undefined : handleLongPress}
           delayLongPress={350}
         >
           <View ref={bubbleRef} style={styles.bubble} collapsable={false}>
-            <Text style={styles.text}>{text}</Text>
-            {diagnosisCard && (
-              <DiagnosisCard
-                issue={diagnosisCard.issue}
-                recommendation={diagnosisCard.recommendation}
-              />
+            {isLoading ? (
+              <View style={styles.loadingContainer}>
+                <Text style={styles.loadingText}>{text}{dots}</Text>
+                <View style={styles.loadingDots}>
+                  <View style={[styles.dot, styles.dot1]} />
+                  <View style={[styles.dot, styles.dot2]} />
+                  <View style={[styles.dot, styles.dot3]} />
+                </View>
+              </View>
+            ) : (
+              <>
+                <Text style={styles.text}>{text}</Text>
+                {diagnosisCard && (
+                  <DiagnosisCard
+                    issue={diagnosisCard.issue}
+                    recommendation={diagnosisCard.recommendation}
+                  />
+                )}
+              </>
             )}
           </View>
         </Pressable>
@@ -183,4 +213,34 @@ const styles = StyleSheet.create({
     fontWeight: Typography.weightSemiBold,
     color: 'rgba(255,255,255,0.92)',
   },
+
+  // Loading state
+  loadingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 2,
+    gap: Spacing.xs,
+  },
+  loadingText: {
+    fontSize: Typography.bodyLg,
+    fontFamily: Typography.fontBody,
+    color: Colors.onBackground,
+    opacity: 0.7,
+  },
+  loadingDots: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    marginLeft: 2,
+  },
+  dot: {
+    width: 5,
+    height: 5,
+    borderRadius: 2.5,
+    backgroundColor: Colors.onBackground,
+    opacity: 0.5,
+  },
+  dot1: { opacity: 0.4 },
+  dot2: { opacity: 0.6 },
+  dot3: { opacity: 0.8 },
 });

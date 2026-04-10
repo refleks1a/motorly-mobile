@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -13,8 +13,11 @@ import {
   Modal,
   Pressable,
   ActivityIndicator,
+  Animated,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
+import * as SecureStore from 'expo-secure-store';
 import { Camera, ArrowUp, MoreHorizontal, Trash2 } from 'lucide-react-native';
 import { BlurView } from 'expo-blur';
 import { AiMessage } from '@/components/chat/AiMessage';
@@ -22,7 +25,7 @@ import { UserMessage } from '@/components/chat/UserMessage';
 import { DateSeparator } from '@/components/chat/DateSeparator';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Colors, Typography, Spacing, Radius } from '@/constants/theme';
-import chatService, { ChatMessage, ChatSession, SendMessageRequest } from '@/services/chat.service';
+import chatService, { ChatMessage as ServiceChatMessage, ChatSession, SendMessageRequest } from '@/services/chat.service';
 import { useVehicles } from '@/contexts/VehicleContext';
 
 // ── Types ───────────────────────────────────────────────────────────────────
@@ -31,13 +34,13 @@ type MsgType = 'date' | 'ai' | 'user';
 
 interface BaseMsg { id: string; type: MsgType; }
 interface DateMsg extends BaseMsg { type: 'date'; label: string; }
-interface AiMsg   extends BaseMsg { type: 'ai';   text: string; timestamp?: string; diagnosisCard?: { issue: string; recommendation: string; image?: any; }; }
+interface AiMsg   extends BaseMsg { type: 'ai';   text: string; timestamp?: string; diagnosisCard?: { issue: string; recommendation: string; image?: any; }; isLoading?: boolean; }
 interface UserMsg extends BaseMsg { type: 'user'; text: string; timestamp?: string; }
 type Message = DateMsg | AiMsg | UserMsg;
 
 // ── Helper Functions ─────────────────────────────────────────────────────────
 
-const convertChatMessagesToUIMessages = (chatMessages: ChatMessage[]): Message[] => {
+const convertChatMessagesToUIMessages = (chatMessages: ServiceChatMessage[]): Message[] => {
   const messages: Message[] = [];
   let currentDate = '';
   
@@ -48,11 +51,11 @@ const convertChatMessagesToUIMessages = (chatMessages: ChatMessage[]): Message[]
       year: 'numeric'
     });
     
-    // Add date separator if date changed
+    // Add date separator if date changed - use index to ensure uniqueness
     if (msgDate !== currentDate) {
       currentDate = msgDate;
       messages.push({
-        id: `date-${msgDate}`,
+        id: `date-${msgDate}-${index}`,
         type: 'date',
         label: msgDate === new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) 
           ? 'Today' 
@@ -117,6 +120,69 @@ export const DiagnoseScreen: React.FC = () => {
 
   const listRef = useRef<FlatList>(null);
   const moreBtnRef = useRef<View>(null);
+  const listOpacity = useRef(new Animated.Value(0)).current;
+
+  // Load messages from local storage on mount
+  useEffect(() => {
+    loadMessagesFromStorage();
+  }, []);
+
+  // Reload messages when screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      loadMessagesFromBackend();
+    }, [currentSessionId])
+  );
+
+  // Save messages to local storage whenever they change
+  useEffect(() => {
+    saveMessagesToStorage();
+  }, [messages]);
+
+  const loadMessagesFromStorage = async () => {
+    try {
+      const storedMessages = await SecureStore.getItemAsync('chat_messages');
+      if (storedMessages) {
+        const parsedMessages = JSON.parse(storedMessages);
+        setMessages(parsedMessages);
+      }
+    } catch (error) {
+      console.error('Failed to load messages from storage:', error);
+    }
+  };
+
+  const saveMessagesToStorage = async () => {
+    try {
+      await SecureStore.setItemAsync('chat_messages', JSON.stringify(messages));
+    } catch (error) {
+      console.error('Failed to save messages to storage:', error);
+    }
+  };
+
+  const fadeInList = () => {
+    Animated.timing(listOpacity, {
+      toValue: 1,
+      duration: 300,
+      useNativeDriver: true,
+    }).start();
+  };
+
+  const loadMessagesFromBackend = async () => {
+    if (!currentSessionId) return;
+    
+    try {
+      setIsLoadingSession(true);
+      listOpacity.setValue(0);
+      const sessionData = await chatService.getChatSession(currentSessionId);
+      const loadedMessages = convertChatMessagesToUIMessages(sessionData.messages);
+      setMessages(loadedMessages);
+    } catch (error) {
+      console.error('Failed to load messages from backend:', error);
+    } finally {
+      setIsLoadingSession(false);
+      fadeInList();
+    }
+  };
 
   // Initialize or load chat session
   useEffect(() => {
@@ -136,6 +202,7 @@ export const DiagnoseScreen: React.FC = () => {
           const sessionData = await chatService.getChatSession(latestSession.id);
           const loadedMessages = convertChatMessagesToUIMessages(sessionData.messages);
           setMessages(loadedMessages);
+          fadeInList();
         } else {
           // Create a new session
           const vehicleName = primaryVehicle 
@@ -149,10 +216,8 @@ export const DiagnoseScreen: React.FC = () => {
           });
           
           setCurrentSessionId(newSession.id);
-          
-          // Don't add any initial messages - the backend will handle the initial greeting
-          // The user will see the empty state and can start typing
           setMessages([]);
+          fadeInList();
         }
       } catch (error) {
         console.error('Failed to initialize chat session:', error);
@@ -183,6 +248,9 @@ export const DiagnoseScreen: React.FC = () => {
       setMessages([]);
       setHeaderMenuVisible(false);
       
+      // Clear local storage
+      await SecureStore.deleteItemAsync('chat_messages');
+      
       // Create a new session
       const vehicleName = primaryVehicle 
         ? `${primaryVehicle.year} ${primaryVehicle.make} ${primaryVehicle.model}`
@@ -200,20 +268,23 @@ export const DiagnoseScreen: React.FC = () => {
       setMessages([]);
     } catch (error) {
       console.error('Failed to clear chat:', error);
+      // Still clear local messages even if backend fails
+      setMessages([]);
+      await SecureStore.deleteItemAsync('chat_messages');
     }
   };
 
   const sendMessage = async () => {
     const text = input.trim();
-    if (!text || isSendingMessage) return;
+    if (!text || isSendingMessage || !currentSessionId) return;
 
     const now = new Date();
     const timestamp = now.toLocaleDateString('en-US', { month: 'long', day: 'numeric' })
       + ', '
       + now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
 
-    // Add user message to UI immediately
-    const userMessageId = `u${Date.now()}`;
+    // Add user message to UI immediately - use timestamp + random for unique ID
+    const userMessageId = `u${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     setMessages(prev => [
       ...prev,
       { id: userMessageId, type: 'user', text, timestamp },
@@ -221,43 +292,105 @@ export const DiagnoseScreen: React.FC = () => {
     setInput('');
     setIsSendingMessage(true);
 
+    // Create AI message with loading state
+    const aiMessageId = `a${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const aiMessage: Message = {
+      id: aiMessageId,
+      type: 'ai',
+      text: 'Thinking...',
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }),
+      isLoading: true,
+    };
+    
+    setMessages(prev => [...prev, aiMessage]);
+
+    // Set timeout for 5 seconds
+    const timeoutId = setTimeout(() => {
+      // Update message to show timeout warning
+      setMessages(prev => prev.map(msg => 
+        msg.id === aiMessageId 
+          ? { ...msg, text: 'Taking longer than expected...', isLoading: true } 
+          : msg
+      ));
+    }, 5000);
+
     try {
-      // Use demo mode (no authentication required)
-      const demoResponse = await chatService.demoDiagnosis(text);
+      // Send message to the current session
+      const response = await chatService.sendMessage(currentSessionId, { content: text });
       
-      // Add AI response to UI
-      const aiMessage: Message = {
-        id: `a${Date.now()}`,
+      // Clear timeout since we got a response
+      clearTimeout(timeoutId);
+      
+      // Update AI message with actual response
+      const updatedAiMessage: Message = {
+        id: response.id || aiMessageId,
         type: 'ai',
-        text: demoResponse.content,
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }),
+        text: response.content || 'I received your message but my response was empty. Please try again.',
+        timestamp: new Date(response.createdAt || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }),
+        isLoading: false,
       };
 
       // Check if we have diagnosis metadata to show a diagnosis card
-      if (demoResponse.diagnosisResult) {
-        const diagnosis = demoResponse.diagnosisResult;
-        const primaryIssue = diagnosis.potentialIssues?.[0]?.name || 'Car Issue';
-        const recommendation = diagnosis.recommendedActions?.[0] || 'Recommended: Further Inspection';
-        
-        aiMessage.diagnosisCard = {
-          issue: primaryIssue,
-          recommendation: recommendation,
+      if (response.metadata?.diagnosis) {
+        updatedAiMessage.diagnosisCard = {
+          issue: response.metadata.diagnosis,
+          recommendation: response.metadata.recommendations?.[0] || 'Recommended: Further Inspection',
           image: require('@/assets/images/brake.png'), // Default image
         };
       }
 
-      setMessages(prev => [...prev, aiMessage]);
+      // Replace the loading message with the actual response
+      setMessages(prev => prev.map(msg => 
+        msg.id === aiMessageId ? updatedAiMessage : msg
+      ));
     } catch (error: any) {
       console.error('Failed to send message:', error);
       
-      // Show error message
+      // Clear timeout
+      clearTimeout(timeoutId);
+      
+      // Update message to show error
       const errorMessage: Message = {
-        id: `e${Date.now()}`,
+        id: aiMessageId,
         type: 'ai',
-        text: "I'm having trouble connecting right now. Please try again in a moment.",
+        text: "I'm having trouble connecting right now. I'll try again in the background.",
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }),
+        isLoading: false,
       };
-      setMessages(prev => [...prev, errorMessage]);
+      
+      setMessages(prev => prev.map(msg => 
+        msg.id === aiMessageId ? errorMessage : msg
+      ));
+      
+      // Automatic retry in background (non-blocking)
+      setTimeout(async () => {
+        try {
+          const retryResponse = await chatService.sendMessage(currentSessionId, { content: text });
+          const retryMessage: Message = {
+            id: retryResponse.id || `retry-${aiMessageId}`,
+            type: 'ai',
+            text: retryResponse.content || 'Retry successful but response was empty.',
+            timestamp: new Date(retryResponse.createdAt || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }),
+            isLoading: false,
+          };
+          
+          if (retryResponse.metadata?.diagnosis) {
+            retryMessage.diagnosisCard = {
+              issue: retryResponse.metadata.diagnosis,
+              recommendation: retryResponse.metadata.recommendations?.[0] || 'Recommended: Further Inspection',
+              image: require('@/assets/images/brake.png'),
+            };
+          }
+          
+          // Update the error message with successful retry
+          setMessages(prev => prev.map(msg => 
+            msg.id === aiMessageId ? retryMessage : msg
+          ));
+        } catch (retryError) {
+          console.error('Background retry failed:', retryError);
+          // Keep the error message as is
+        }
+      }, 3000); // Retry after 3 seconds
     } finally {
       setIsSendingMessage(false);
     }
@@ -276,6 +409,16 @@ export const DiagnoseScreen: React.FC = () => {
         />
       );
     return null;
+  };
+
+  // Ensure all messages have unique IDs for FlatList
+  const getMessageKey = (item: Message, index: number): string => {
+    // Use the item's ID if it exists and is not empty
+    if (item.id && item.id.trim() !== '') {
+      return item.id;
+    }
+    // Fallback to index-based key
+    return `msg-${index}`;
   };
 
   return (
@@ -323,18 +466,20 @@ export const DiagnoseScreen: React.FC = () => {
           </View>
         ) : (
           // Chat messages
-          <FlatList
-            ref={listRef}
-            data={messages}
-            keyExtractor={m => m.id}
-            renderItem={renderItem}
-            contentContainerStyle={styles.listContent}
-            style={styles.list}
-            onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: true })}
-            showsVerticalScrollIndicator={false}
-            keyboardShouldPersistTaps="handled"
-            removeClippedSubviews={false}
-          />
+          <Animated.View style={[styles.flex, { opacity: listOpacity }]}>
+            <FlatList
+              ref={listRef}
+              data={[...messages].reverse()}
+              keyExtractor={(item, index) => getMessageKey(item, index)}
+              renderItem={renderItem}
+              contentContainerStyle={styles.listContent}
+              style={styles.list}
+              inverted
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+              removeClippedSubviews={false}
+            />
+          </Animated.View>
         )}
 
         {/* ── Input bar ── */}
