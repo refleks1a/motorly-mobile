@@ -13,8 +13,15 @@ import { User, Edit2, Check, X } from 'lucide-react-native';
 import { SettingsSection } from './components/SettingsSection';
 import { SettingsItem } from './components/SettingsItem';
 import { Colors, Typography, Spacing } from '@/constants/theme';
+import { useAuth } from '@/contexts/AuthContext';
 
-export const SettingsScreen: React.FC = () => {
+interface Props {
+  navigation: any;
+}
+
+export const SettingsScreen: React.FC<Props> = ({ navigation }) => {
+  const { logout, user: authUser, updateProfile } = useAuth();
+  
   // State for notification settings
   const [notificationSettings, setNotificationSettings] = useState({
     maintenanceReminders: true,
@@ -23,12 +30,11 @@ export const SettingsScreen: React.FC = () => {
     diagnosticAlerts: true,
   });
 
-  // State for user data
-  const [user, setUser] = useState({
-    name: 'John Doe',
-    email: 'john.doe@example.com',
-    // In a real app, this would come from auth context or storage
-  });
+  // Derived display values
+  const displayName = authUser 
+    ? `${authUser.firstName || ''} ${authUser.lastName || ''}`.trim() || 'User'
+    : 'User';
+  const displayEmail = authUser?.email || 'user@example.com';
 
   // State for name editing
   const [isEditingName, setIsEditingName] = useState(false);
@@ -65,20 +71,29 @@ export const SettingsScreen: React.FC = () => {
 
   // Handler for name editing
   const handleStartEditName = () => {
-    setEditedName(user.name);
+    setEditedName(displayName);
     setIsEditingName(true);
   };
 
-  const handleSaveName = () => {
+  const handleSaveName = async () => {
     const trimmedName = editedName.trim();
     if (!trimmedName) {
       Alert.alert('Error', 'Name cannot be empty');
       return;
     }
     
-    setUser(prev => ({ ...prev, name: trimmedName }));
-    setIsEditingName(false);
-    Alert.alert('Success', 'Name updated successfully');
+    const parts = trimmedName.split(' ');
+    const firstName = parts[0];
+    const lastName = parts.slice(1).join(' ');
+    
+    try {
+      await updateProfile({ firstName, lastName });
+      setIsEditingName(false);
+      Alert.alert('Success', 'Name updated successfully');
+    } catch (error) {
+      console.error('Failed to update name:', error);
+      Alert.alert('Error', 'Failed to update name. Please try again.');
+    }
   };
 
   const handleCancelEditName = () => {
@@ -104,9 +119,18 @@ export const SettingsScreen: React.FC = () => {
         {
           text: 'Log Out',
           style: 'destructive',
-          onPress: () => {
-            // In a real app, this would clear auth tokens and navigate to auth screen
-            Alert.alert('Logged Out', 'You have been logged out successfully.');
+          onPress: async () => {
+            try {
+              await logout();
+              // Navigate to Auth screen and reset navigation stack
+              navigation.reset({
+                index: 0,
+                routes: [{ name: 'Auth' }],
+              });
+            } catch (error) {
+              console.error('Logout failed:', error);
+              Alert.alert('Error', 'Failed to log out. Please try again.');
+            }
           },
         },
       ]
@@ -237,7 +261,7 @@ export const SettingsScreen: React.FC = () => {
                 </View>
               ) : (
                 <View style={styles.nameDisplayContainer}>
-                  <Text style={styles.profileName}>{user.name}</Text>
+                  <Text style={styles.profileName}>{displayName}</Text>
                   <TouchableOpacity
                     onPress={handleStartEditName}
                     style={styles.editIconButton}
@@ -247,7 +271,7 @@ export const SettingsScreen: React.FC = () => {
                   </TouchableOpacity>
                 </View>
               )}
-              <Text style={styles.profileEmail}>{user.email}</Text>
+              <Text style={styles.profileEmail}>{displayEmail}</Text>
             </View>
           </View>
 
