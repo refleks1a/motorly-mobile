@@ -302,8 +302,20 @@ export const MyCarScreen: React.FC<Props> = ({ route, navigation }) => {
         return;
       }
       
-      // Call the API to update the vehicle
-      await vehicleService.updateVehicle(vehicle.id, updateData);
+      const finalUpdateData = { ...updateData };
+      
+      // If there's a local image to upload
+      if (finalUpdateData.imageUrl && (finalUpdateData.imageUrl.startsWith('file:') || finalUpdateData.imageUrl.startsWith('content:'))) {
+        await vehicleService.uploadVehicleImage(vehicle.id, finalUpdateData.imageUrl);
+        // Remove it from the standard update since the upload endpoint already updates it in DB
+        delete finalUpdateData.imageUrl;
+      }
+      
+      // Call the API to update the vehicle remaining fields
+      // If imageUrl was the only change, finalUpdateData will be empty here
+      if (Object.keys(finalUpdateData).length > 0) {
+        await vehicleService.updateVehicle(vehicle.id, finalUpdateData);
+      }
       
       // Refresh the vehicle data from the context
       await refreshVehicles();
@@ -652,7 +664,11 @@ export const MyCarScreen: React.FC<Props> = ({ route, navigation }) => {
               <Text style={styles.odometerValue}>{vehicleMileage}</Text>
             </View>
             <View style={[styles.carImagePlaceholder]}>
-              <Car size={32} color={Colors.outlineVariant} strokeWidth={1.5} />
+              {vehicle.imageUrl ? (
+                <Image source={{ uri: vehicle.imageUrl }} style={{ width: '100%', height: '100%', borderRadius: Radius.sm }} resizeMode="cover" />
+              ) : (
+                <Car size={32} color={Colors.outlineVariant} strokeWidth={1.5} />
+              )}
             </View>
           </View>
         </View>

@@ -11,6 +11,7 @@ export interface Vehicle {
   licensePlate?: string;
   color?: string;
   isPrimary: boolean;
+  imageUrl?: string;
   createdAt: string;
   updatedAt: string;
   userId: string;
@@ -34,6 +35,7 @@ export interface UpdateVehicleRequest {
   vin?: string;
   licensePlate?: string;
   color?: string;
+  imageUrl?: string;
 }
 
 export interface MaintenanceItem {
@@ -221,6 +223,30 @@ class VehicleService {
     logId: string
   ): Promise<{ message: string }> {
     const response = await api.delete<{ message: string }>(`/vehicles/${vehicleId}/fuel-logs/${logId}`);
+    return response.data;
+  }
+
+  // Upload an image for a vehicle
+  async uploadVehicleImage(vehicleId: string, imageUri: string): Promise<{ imageUrl: string }> {
+    const formData = new FormData();
+    const filename = imageUri.split('/').pop() || 'image.jpg';
+    const match = /\.(\w+)$/.exec(filename);
+    const type = match ? `image/${match[1]}` : `image`;
+
+    formData.append('image', {
+      uri: imageUri,
+      name: filename,
+      type,
+    } as any);
+
+    // Call the POST /:id/image endpoint
+    const response = await api.post<{ imageUrl: string }>(`/vehicles/${vehicleId}/image`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    
+    // API returns updated vehicle which has imageUrl
     return response.data;
   }
 }

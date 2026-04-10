@@ -39,7 +39,7 @@ export const UpdateCarModal: React.FC<UpdateCarModalProps> = ({
     vehicle.mileage ? String(vehicle.mileage).replace(/\D/g, '') : ''
   );
   const [licensePlate, setLicensePlate] = useState(vehicle.licensePlate || '');
-  const [imageUrl, setImageUrl] = useState('');
+  const [imageUrl, setImageUrl] = useState(vehicle.imageUrl || '');
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
@@ -48,6 +48,7 @@ export const UpdateCarModal: React.FC<UpdateCarModalProps> = ({
     setYear(vehicle.year ? String(vehicle.year) : '');
     setMileageInput(vehicle.mileage ? String(vehicle.mileage).replace(/\D/g, '') : '');
     setLicensePlate(vehicle.licensePlate || '');
+    setImageUrl(vehicle.imageUrl || '');
     setIsSaving(false); // Reset saving state when vehicle changes
   }, [vehicle]);
 
@@ -105,6 +106,10 @@ export const UpdateCarModal: React.FC<UpdateCarModalProps> = ({
     
     if (licensePlate !== vehicle.licensePlate) {
       updateData.licensePlate = licensePlate || undefined;
+    }
+    
+    if (imageUrl && imageUrl !== vehicle.imageUrl) {
+      updateData.imageUrl = imageUrl;
     }
     
     // Only call onSave if there are actual changes

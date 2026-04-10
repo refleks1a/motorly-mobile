@@ -13,6 +13,7 @@ import { SectionHeader } from '@/components/SectionHeader';
 import { MaintenanceCard } from '@/components/MaintenanceCard';
 import { OfferCard } from '@/components/OfferCard';
 import { OfferDetailModal, type OfferDetail } from '@/components/OfferDetailModal';
+import { NewsCard } from '@/components/NewsCard';
 import { MaintenanceDetailModal, type MaintenanceItem } from '@/components/MaintenanceDetailModal';
 import { Colors, Typography, Spacing, Radius, Elevation } from '@/constants/theme';
 import { useVehicles } from '@/contexts/VehicleContext';
@@ -25,20 +26,22 @@ const MOCK_VEHICLE = {
   healthScore: 85,
 };
 
-const MOCK_MAINTENANCE = [
+const MOCK_NEWS = [
   {
     id: '1',
-    title: 'Oil Change',
-    subtitle: 'Due in ~800 km',
-    status: 'scheduled' as const,
-    icon: <Droplets size={22} color={Colors.primary} strokeWidth={2} />,
+    title: 'Top 10 Most Reliable Cars of 2026',
+    excerpt: 'We\'ve driven, tested, and analyzed over 100 new vehicles this year. Discover which cars stood the test of time and miles with zero issues.',
+    imageUrl: 'https://images.unsplash.com/photo-1549317661-bd32c8ce0db2?q=80&w=2670&auto=format&fit=crop',
+    date: 'Apr 08, 2026',
+    category: 'Reviews',
   },
   {
     id: '2',
-    title: 'Brake Pads',
-    subtitle: 'Overdue by 200 km',
-    status: 'priority' as const,
-    icon: <Disc size={22} color={Colors.primary} strokeWidth={2} />,
+    title: 'The Future of EV Batteries Is Finally Here',
+    excerpt: 'Solid-state batteries are successfully pushing electric vehicles past the 1,000 km range milestone. What does this mean for the industry?',
+    imageUrl: 'https://cdn.prod.website-files.com/5ec85520c4dfff034b036be2/63223ca52c095a13a1a74d91_the-future-of-ev-batteries_header.webp',
+    date: 'Apr 05, 2026',
+    category: 'Industry',
   },
 ];
 
@@ -259,8 +262,16 @@ export const HomeScreen: React.FC<Props> = ({ navigation }) => {
               <Text style={styles.vehicleName}>{vehicleDisplayName}</Text>
               <Text style={styles.vehicleMileage}>{vehicleMileage}</Text>
             </View>
-            <View style={styles.vehicleIconCircle}>
-              <Car size={32} color={Colors.primary} strokeWidth={2} />
+            <View style={styles.carImagePlaceholder}>
+              {primaryVehicle?.imageUrl ? (
+                <Image 
+                  source={{ uri: primaryVehicle.imageUrl }} 
+                  style={{ width: '100%', height: '100%' }} 
+                  resizeMode="cover" 
+                />
+              ) : (
+                <Car size={32} color={Colors.primary} strokeWidth={2} />
+              )}
             </View>
           </View>
 
@@ -274,34 +285,29 @@ export const HomeScreen: React.FC<Props> = ({ navigation }) => {
           </View>
         </View>
 
-        {/* ── Upcoming Maintenance ── */}
+        {/* ── Automotive News ── */}
         <View style={styles.section}>
           <SectionHeader
-            title="Upcoming Maintenance"
-            actionLabel="All"
-            onAction={handleViewAllMaintenance}
+            title="Automotive News"
           />
-          {isLoadingMaintenance ? (
-            <View style={styles.loadingContainer}>
-              <Text style={styles.loadingText}>Loading maintenance items...</Text>
-            </View>
-          ) : maintenanceItems.length === 0 ? (
-            <View style={styles.emptyContainer}>
-              <Text style={styles.emptyText}>No upcoming maintenance items</Text>
-              <Text style={styles.emptySubtext}>Add maintenance items in the My Car section</Text>
-            </View>
-          ) : (
-            maintenanceItems.map((item) => (
-              <MaintenanceCard
-                key={item.id}
-                icon={item.icon}
-                title={item.title}
-                subtitle={item.subtitle}
-                status={item.status}
-                onPress={() => handleMaintenancePress(item)}
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.offersScroll}
+          >
+            {MOCK_NEWS.map((news) => (
+              <NewsCard
+                key={news.id}
+                id={news.id}
+                title={news.title}
+                excerpt={news.excerpt}
+                imageUrl={news.imageUrl}
+                date={news.date}
+                category={news.category}
+                onPress={() => alert(`Opening news: ${news.title}`)}
               />
-            ))
-          )}
+            ))}
+          </ScrollView>
         </View>
 
         {/* ── Special Offers ── */}
@@ -417,13 +423,14 @@ const styles = StyleSheet.create({
     fontFamily: Typography.fontBody,
     color: Colors.onSurfaceVariant,
   },
-  vehicleIconCircle: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
+  carImagePlaceholder: {
+    width: 140,
+    height: 70,
+    borderRadius: Radius.sm,
     backgroundColor: Colors.surfaceContainerLow,
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
   },
   healthSection: {
     flexDirection: 'row',
