@@ -24,7 +24,7 @@ interface Props {
 }
 
 export const AuthScreen: React.FC<Props> = ({ navigation }) => {
-  const { login, register, isLoading } = useAuth();
+  const { login, register, isLoading, consumeNewUser } = useAuth();
   const { refreshVehicles } = useVehicles();
   const [isSignUp, setIsSignUp] = useState(false);
   const [isForgotPassword, setIsForgotPassword] = useState(false);
@@ -152,12 +152,8 @@ export const AuthScreen: React.FC<Props> = ({ navigation }) => {
         setSignUpPassword('');
         setConfirmPassword('');
         
-        // Check if user has any vehicles (new users should have none)
-        if (userVehicles && userVehicles.length > 0) {
-          navigation.navigate('MainApp');
-        } else {
-          navigation.navigate('AddCar');
-        }
+        // New users always go to Subscription first, then onward to AddCar
+        navigation.navigate('Subscription', { isOnboarding: true });
       }, 1500);
     } catch (error: any) {
       showNotification(error.message || 'Registration failed. Please try again.', 'error');

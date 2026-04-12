@@ -60,14 +60,8 @@ class ChatService {
   }
 
   // Get a specific chat session with its messages
-  async getChatSession(sessionId: string): Promise<{
-    session: ChatSession;
-    messages: ChatMessage[];
-  }> {
-    const response = await api.get<{
-      session: ChatSession;
-      messages: ChatMessage[];
-    }>(`/chat/sessions/${sessionId}`);
+  async getChatSession(sessionId: string): Promise<any> {
+    const response = await api.get<any>(`/chat/sessions/${sessionId}`);
     return response.data;
   }
 
@@ -79,8 +73,20 @@ class ChatService {
 
   // Send a message in a chat session
   async sendMessage(sessionId: string, messageData: SendMessageRequest): Promise<ChatMessage> {
-    const response = await api.post<ChatMessage>(`/chat/sessions/${sessionId}/messages`, messageData);
-    return response.data;
+    const response = await api.post<any>(`/chat/sessions/${sessionId}/messages`, messageData);
+    
+    // Check if backend returned an object with an aiMessage property
+    const aiMessage = response.data.aiMessage || response.data;
+    
+    // Map diagnosisResult to metadata for UI compat layer
+    if (aiMessage.diagnosisResult && !aiMessage.metadata) {
+      aiMessage.metadata = {
+        diagnosis: aiMessage.diagnosisResult.potentialIssues?.[0]?.name || 'Diagnosis',
+        recommendations: aiMessage.diagnosisResult.recommendedActions || []
+      };
+    }
+
+    return aiMessage;
   }
 
   // Get diagnosis history for a vehicle

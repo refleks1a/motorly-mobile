@@ -1,5 +1,6 @@
 import React, { createContext, useState, useContext, useEffect, ReactNode } from 'react';
 import vehicleService, { Vehicle } from '@/services/vehicle.service';
+import { isAuthenticated } from '@/services/api';
 
 interface VehicleContextType {
   vehicles: Vehicle[];
@@ -22,9 +23,12 @@ export const VehicleProvider: React.FC<VehicleProviderProps> = ({ children }) =>
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Fetch vehicles on mount
+  // Only fetch vehicles on mount if the user already has a stored auth token.
+  // This prevents Network Error noise during onboarding / when logged out.
   useEffect(() => {
-    refreshVehicles();
+    isAuthenticated().then((hasToken) => {
+      if (hasToken) refreshVehicles();
+    });
   }, []);
 
   const refreshVehicles = async () => {

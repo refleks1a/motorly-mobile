@@ -27,6 +27,7 @@ import { DiagnoseScreen } from '@/screens/Diagnose';
 import { ShopsScreen } from '@/screens/Shops';
 import { MyCarScreen } from '@/screens/MyCar';
 import { SettingsScreen } from '@/screens/Settings';
+import { SubscriptionScreen } from '@/screens/Subscription';
 import { Colors, Typography } from '@/constants/theme';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { VehicleProvider } from '@/contexts/VehicleContext';
@@ -122,6 +123,7 @@ export default function App() {
               <Stack.Screen name="Auth"              component={AuthScreen} />
               <Stack.Screen name="AddCar"            component={AddCarScreen} />
               <Stack.Screen name="MainApp"           component={MainTabs} />
+              <Stack.Screen name="Subscription"      component={SubscriptionScreen} />
             </Stack.Navigator>
           </NavigationContainer>
         </SafeAreaProvider>

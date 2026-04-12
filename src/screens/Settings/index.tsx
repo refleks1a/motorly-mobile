@@ -293,6 +293,16 @@ export const SettingsScreen: React.FC<Props> = ({ navigation }) => {
           />
         </SettingsSection>
 
+        {/* Subscription Section */}
+        <SettingsSection title="Subscription">
+          <SettingsItem
+            title="Manage Subscription"
+            subtitle="Free plan · Upgrade for more features"
+            onPress={() => navigation.navigate('Subscription')}
+            type="normal"
+          />
+        </SettingsSection>
+
         {/* Notifications Section */}
         <SettingsSection title="Notifications">
           <SettingsItem

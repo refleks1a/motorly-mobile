@@ -74,6 +74,57 @@ export const AiMessage: React.FC<Props> = ({ text, timestamp, diagnosisCard, isL
     return () => clearInterval(interval);
   }, [isLoading]);
 
+  const renderMarkdown = (textStr: string) => {
+    const lines = textStr.split('\n');
+    return lines.map((line, lineIndex) => {
+      let isHeader = false;
+      let lineText = line;
+      if (line.startsWith('### ')) {
+        isHeader = true;
+        lineText = line.substring(4);
+      } else if (line.startsWith('## ')) {
+        isHeader = true;
+        lineText = line.substring(3);
+      } else if (line.startsWith('# ')) {
+        isHeader = true;
+        lineText = line.substring(2);
+      }
+
+      // Split by **, *, and `
+      const parts = lineText.split(/(\*\*.*?\*\*|\*.*?\*|`.*?`)/g);
+      
+      const lineElements = parts.map((part, partIndex) => {
+        if (part.startsWith('**') && part.endsWith('**')) {
+          return <Text key={`bold-${partIndex}`} style={[styles.text, { fontWeight: 'bold' }]}>{part.slice(2, -2)}</Text>;
+        }
+        if (part.startsWith('*') && part.endsWith('*')) {
+          return <Text key={`italic-${partIndex}`} style={[styles.text, { fontStyle: 'italic' }]}>{part.slice(1, -1)}</Text>;
+        }
+        if (part.startsWith('`') && part.endsWith('`')) {
+          return (
+            <Text key={`code-${partIndex}`} style={[styles.text, { fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace', backgroundColor: 'rgba(0,0,0,0.05)' }]}>
+              {part.slice(1, -1)}
+            </Text>
+          );
+        }
+        return <Text key={`text-${partIndex}`} style={styles.text}>{part}</Text>;
+      });
+
+      return (
+        <Text 
+          key={`line-${lineIndex}`} 
+          style={[
+            styles.text,
+            isHeader && { fontWeight: 'bold', fontSize: 18, marginTop: 8, marginBottom: 4 }
+          ]}
+        >
+          {lineElements}
+          {lineIndex < lines.length - 1 ? '\n' : ''}
+        </Text>
+      );
+    });
+  };
+
   return (
     <>
       <View style={styles.row}>
@@ -97,15 +148,15 @@ export const AiMessage: React.FC<Props> = ({ text, timestamp, diagnosisCard, isL
                 </View>
               </View>
             ) : (
-              <>
-                <Text style={styles.text}>{text}</Text>
+              <View>
+                {renderMarkdown(text)}
                 {diagnosisCard && (
                   <DiagnosisCard
                     issue={diagnosisCard.issue}
                     recommendation={diagnosisCard.recommendation}
                   />
                 )}
-              </>
+              </View>
             )}
           </View>
         </Pressable>
