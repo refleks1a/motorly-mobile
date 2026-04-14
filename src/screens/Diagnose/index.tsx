@@ -14,6 +14,8 @@ import {
   Pressable,
   ActivityIndicator,
   Animated,
+  LayoutAnimation,
+  UIManager,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
@@ -101,6 +103,11 @@ const convertChatMessagesToUIMessages = (chatMessages: ServiceChatMessage[]): Me
   
   return messages;
 };
+
+// Enable LayoutAnimation for Android
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
 
 // ── Component ────────────────────────────────────────────────────────────────
 
@@ -212,7 +219,6 @@ export const DiagnoseScreen: React.FC = () => {
           const newSession = await chatService.createChatSession({
             title: `Diagnosis for ${vehicleName}`,
             vehicleId: primaryVehicle?.id,
-            initialMessage: "Hello! I'm your Motorly AI assistant. What seems to be the problem with your vehicle today?"
           });
           
           setCurrentSessionId(newSession.id);
@@ -259,7 +265,6 @@ export const DiagnoseScreen: React.FC = () => {
       const newSession = await chatService.createChatSession({
         title: `Diagnosis for ${vehicleName}`,
         vehicleId: primaryVehicle?.id,
-        initialMessage: "Hello! I'm your Motorly AI assistant. What seems to be the problem with your vehicle today?"
       });
       
       setCurrentSessionId(newSession.id);
@@ -338,6 +343,9 @@ export const DiagnoseScreen: React.FC = () => {
           image: require('@/assets/images/brake.png'), // Default image
         };
       }
+
+      // Smooth animation for expanding the chat bubble
+      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
 
       // Replace the loading message with the actual response
       setMessages(prev => prev.map(msg => 

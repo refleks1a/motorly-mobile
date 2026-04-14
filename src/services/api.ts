@@ -5,7 +5,7 @@ import { secureStorage } from './storage.service';
 // Backend runs on port 3001 by default (see motorly-backend/src/index.ts)
 // For physical device testing, use your computer's IP address instead of localhost
 // Your computer IP: 192.168.0.103
-const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL || 'http://192.168.0.101:3001/api';
+const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL || 'http://192.168.0.103:3001/api';
 
 // Create axios instance with base configuration
 const api = axios.create({
