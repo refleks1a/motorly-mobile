@@ -8,6 +8,7 @@ import {
   TouchableWithoutFeedback,
   StyleSheet,
   Dimensions,
+  Image,
 } from 'react-native';
 import { BlurView } from 'expo-blur';
 import * as Clipboard from 'expo-clipboard';
@@ -22,9 +23,10 @@ interface Props {
   text: string;
   timestamp?: string;
   onEdit?: () => void;
+  imageUri?: string;
 }
 
-export const UserMessage: React.FC<Props> = ({ text, timestamp, onEdit }) => {
+export const UserMessage: React.FC<Props> = ({ text, timestamp, onEdit, imageUri }) => {
   const bubbleRef = useRef<View>(null);
   const [menuVisible, setMenuVisible] = useState(false);
   const [menuTop, setMenuTop] = useState(0);
@@ -66,7 +68,14 @@ export const UserMessage: React.FC<Props> = ({ text, timestamp, onEdit }) => {
         delayLongPress={350}
       >
         <View ref={bubbleRef} style={styles.bubble} collapsable={false}>
-          <Text style={styles.text}>{text}</Text>
+          {imageUri && (
+            <Image 
+              source={{ uri: imageUri }} 
+              style={styles.attachedImage} 
+              resizeMode="cover" 
+            />
+          )}
+          {text ? <Text style={styles.text}>{text}</Text> : null}
         </View>
       </Pressable>
 
@@ -128,6 +137,12 @@ const styles = StyleSheet.create({
     fontFamily: Typography.fontBody,
     color: Colors.onPrimary,
     lineHeight: 24,
+  },
+  attachedImage: {
+    width: 200,
+    height: 200,
+    borderRadius: Radius.sm,
+    marginBottom: Spacing.sm,
   },
 
   // Anchored glass menu

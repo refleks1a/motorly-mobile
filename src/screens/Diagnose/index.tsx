@@ -16,11 +16,13 @@ import {
   Animated,
   LayoutAnimation,
   UIManager,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import * as SecureStore from 'expo-secure-store';
-import { Camera, ArrowUp, MoreHorizontal, Trash2 } from 'lucide-react-native';
+import * as ImagePicker from 'expo-image-picker';
+import { Camera, ArrowUp, MoreHorizontal, Trash2, X } from 'lucide-react-native';
 import { BlurView } from 'expo-blur';
 import { AiMessage } from '@/components/chat/AiMessage';
 import { UserMessage } from '@/components/chat/UserMessage';
@@ -37,7 +39,7 @@ type MsgType = 'date' | 'ai' | 'user';
 interface BaseMsg { id: string; type: MsgType; }
 interface DateMsg extends BaseMsg { type: 'date'; label: string; }
 interface AiMsg   extends BaseMsg { type: 'ai';   text: string; timestamp?: string; diagnosisCard?: { issue: string; recommendation: string; image?: any; }; isLoading?: boolean; }
-interface UserMsg extends BaseMsg { type: 'user'; text: string; timestamp?: string; }
+interface UserMsg extends BaseMsg { type: 'user'; text: string; timestamp?: string; imageUri?: string; }
 type Message = DateMsg | AiMsg | UserMsg;
 
 // ── Helper Functions ─────────────────────────────────────────────────────────
@@ -78,6 +80,7 @@ const convertChatMessagesToUIMessages = (chatMessages: ServiceChatMessage[]): Me
         type: 'user',
         text: msg.content,
         timestamp,
+        imageUri: (msg as any).imageUrl || undefined,
       });
     } else if (msg.role === 'assistant') {
       const uiMessage: Message = {
@@ -122,6 +125,7 @@ export const DiagnoseScreen: React.FC = () => {
   // UI state
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
+  const [selectedImageUri, setSelectedImageUri] = useState<string | null>(null);
   const [headerMenuVisible, setHeaderMenuVisible] = useState(false);
   const [headerMenuPos, setHeaderMenuPos] = useState({ top: 0, right: 0 });
 
@@ -279,9 +283,56 @@ export const DiagnoseScreen: React.FC = () => {
     }
   };
 
+  const handlePickImage = () => {
+    Alert.alert(
+      'Attach Image',
+      'Choose a source',
+      [
+        {
+          text: 'Camera',
+          onPress: async () => {
+            const permission = await ImagePicker.requestCameraPermissionsAsync();
+            if (!permission.granted) {
+              Alert.alert('Permission needed', 'Camera access is required to take photos.');
+              return;
+            }
+            const result = await ImagePicker.launchCameraAsync({
+              mediaTypes: ['images'],
+              quality: 0.7,
+              allowsEditing: true,
+            });
+            if (!result.canceled && result.assets[0]) {
+              setSelectedImageUri(result.assets[0].uri);
+            }
+          },
+        },
+        {
+          text: 'Photo Library',
+          onPress: async () => {
+            const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+            if (!permission.granted) {
+              Alert.alert('Permission needed', 'Photo library access is required to select images.');
+              return;
+            }
+            const result = await ImagePicker.launchImageLibraryAsync({
+              mediaTypes: ['images'],
+              quality: 0.7,
+              allowsEditing: true,
+            });
+            if (!result.canceled && result.assets[0]) {
+              setSelectedImageUri(result.assets[0].uri);
+            }
+          },
+        },
+        { text: 'Cancel', style: 'cancel' },
+      ]
+    );
+  };
+
   const sendMessage = async () => {
     const text = input.trim();
-    if (!text || isSendingMessage || !currentSessionId) return;
+    const imageToSend = selectedImageUri;
+    if ((!text && !imageToSend) || isSendingMessage || !currentSessionId) return;
 
     const now = new Date();
     const timestamp = now.toLocaleDateString('en-US', { month: 'long', day: 'numeric' })
@@ -292,9 +343,10 @@ export const DiagnoseScreen: React.FC = () => {
     const userMessageId = `u${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     setMessages(prev => [
       ...prev,
-      { id: userMessageId, type: 'user', text, timestamp },
+      { id: userMessageId, type: 'user', text: text || (imageToSend ? '📷 Image' : ''), timestamp, imageUri: imageToSend || undefined },
     ]);
     setInput('');
+    setSelectedImageUri(null);
     setIsSendingMessage(true);
 
     // Create AI message with loading state
@@ -321,7 +373,10 @@ export const DiagnoseScreen: React.FC = () => {
 
     try {
       // Send message to the current session
-      const response = await chatService.sendMessage(currentSessionId, { content: text });
+      const response = await chatService.sendMessage(currentSessionId, { 
+        content: text || 'Please analyze this image', 
+        imageUri: imageToSend || undefined,
+      });
       
       // Clear timeout since we got a response
       clearTimeout(timeoutId);
@@ -413,6 +468,7 @@ export const DiagnoseScreen: React.FC = () => {
         <UserMessage
           text={item.text}
           timestamp={item.timestamp}
+          imageUri={item.imageUri}
           onEdit={() => setInput(item.text)}
         />
       );
@@ -497,14 +553,29 @@ export const DiagnoseScreen: React.FC = () => {
             style={styles.fadeGradient}
             pointerEvents="none"
           />
+          {/* Image preview */}
+          {selectedImageUri && (
+            <View style={styles.imagePreviewContainer}>
+              <View style={styles.imagePreviewWrapper}>
+                <Image source={{ uri: selectedImageUri }} style={styles.imagePreview} resizeMode="cover" />
+                <TouchableOpacity
+                  style={styles.removeImageBtn}
+                  onPress={() => setSelectedImageUri(null)}
+                  activeOpacity={0.7}
+                >
+                  <X size={14} color="#fff" strokeWidth={3} />
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
           <View style={styles.inputBar}>
-            <TouchableOpacity style={styles.cameraBtn} activeOpacity={0.7} disabled={isLoadingSession}>
-              <Camera size={26} color={Colors.onSurfaceVariant} strokeWidth={2} />
+            <TouchableOpacity style={styles.cameraBtn} activeOpacity={0.7} disabled={isLoadingSession} onPress={handlePickImage}>
+              <Camera size={26} color={selectedImageUri ? Colors.primary : Colors.onSurfaceVariant} strokeWidth={2} />
             </TouchableOpacity>
             <View style={styles.inputWrapper}>
               <TextInput
                 style={styles.input}
-                placeholder="Ask Motorly..."
+                placeholder={selectedImageUri ? 'Add a message (optional)...' : 'Ask Motorly...'}
                 placeholderTextColor={Colors.onSurfaceVariant}
                 value={input}
                 onChangeText={setInput}
@@ -519,14 +590,14 @@ export const DiagnoseScreen: React.FC = () => {
                 </View>
               ) : (
                 <TouchableOpacity
-                  style={[styles.sendBtn, !input.trim() && styles.sendBtnDisabled]}
+                  style={[styles.sendBtn, (!input.trim() && !selectedImageUri) && styles.sendBtnDisabled]}
                   activeOpacity={0.8}
                   onPress={sendMessage}
-                  disabled={!input.trim() || isSendingMessage}
+                  disabled={(!input.trim() && !selectedImageUri) || isSendingMessage}
                 >
                   <ArrowUp 
                     size={20} 
-                    color={!input.trim() ? Colors.onSurfaceVariant : Colors.onPrimary} 
+                    color={(!input.trim() && !selectedImageUri) ? Colors.onSurfaceVariant : Colors.onPrimary} 
                     strokeWidth={3} 
                   />
                 </TouchableOpacity>
@@ -659,6 +730,36 @@ const styles = StyleSheet.create({
   },
   sendBtnDisabled: {
     backgroundColor: Colors.surfaceContainerLow,
+  },
+
+  // Image preview
+  imagePreviewContainer: {
+    paddingHorizontal: Spacing.lg,
+    paddingTop: Spacing.sm,
+    paddingBottom: Spacing.xs,
+    backgroundColor: Colors.surface,
+  },
+  imagePreviewWrapper: {
+    width: 72,
+    height: 72,
+    borderRadius: Radius.md,
+    overflow: 'hidden',
+    marginLeft: 52, // align with text input (cameraBtn width + gap)
+  },
+  imagePreview: {
+    width: 72,
+    height: 72,
+  },
+  removeImageBtn: {
+    position: 'absolute',
+    top: 4,
+    right: 4,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 
   // Loading state

@@ -22,6 +22,7 @@ export interface ChatMessage {
     parts?: string[];
     estimatedCost?: number;
   };
+  imageUrl?: string;
   createdAt: string;
 }
 
@@ -34,6 +35,7 @@ export interface CreateChatSessionRequest {
 export interface SendMessageRequest {
   content: string;
   vehicleId?: string;
+  imageUri?: string;
 }
 
 export interface DiagnosisHistoryItem {
@@ -73,7 +75,33 @@ class ChatService {
 
   // Send a message in a chat session
   async sendMessage(sessionId: string, messageData: SendMessageRequest): Promise<ChatMessage> {
-    const response = await api.post<any>(`/chat/sessions/${sessionId}/messages`, messageData);
+    let response;
+
+    if (messageData.imageUri) {
+      const formData = new FormData();
+      formData.append('content', messageData.content);
+      if (messageData.vehicleId) {
+        formData.append('vehicleId', messageData.vehicleId);
+      }
+      
+      const filename = messageData.imageUri.split('/').pop() || 'image.jpg';
+      const match = /\.(\w+)$/.exec(filename);
+      const type = match ? `image/${match[1]}` : `image/jpeg`;
+      
+      formData.append('image', {
+        uri: messageData.imageUri,
+        name: filename,
+        type,
+      } as any);
+
+      response = await api.post<any>(`/chat/sessions/${sessionId}/messages`, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+    } else {
+      response = await api.post<any>(`/chat/sessions/${sessionId}/messages`, messageData);
+    }
     
     // Check if backend returned an object with an aiMessage property
     const aiMessage = response.data.aiMessage || response.data;
