@@ -86,7 +86,7 @@ export const HomeScreen: React.FC<Props> = ({ navigation }) => {
   const vehicleMileage = primaryVehicle
     ? `${primaryVehicle.mileage?.toLocaleString() || 0} km`
     : '0 km';
-  const healthScore = 85; // Mock health score for now
+  const healthScore = primaryVehicle?.healthScore ?? 100;
   const healthFraction = healthScore / 100;
 
   // ── Automotive News state ──

@@ -165,7 +165,7 @@ export const MyCarScreen: React.FC<Props> = ({ route, navigation }) => {
   // Build vehicle display info
   const name = `${vehicle.year} ${vehicle.make} ${vehicle.model}`;
   const vehicleMileage = vehicle.mileage ? `${vehicle.mileage.toLocaleString()} km` : '0 km';
-  const healthScore = 85; // Mock health score for now
+  const healthScore = vehicle.healthScore ?? 100;
   const healthFraction = healthScore / 100;
 
   // Fetch maintenance items when vehicle is available
