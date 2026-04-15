@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
 import { Colors, Typography, Spacing, Radius } from '@/constants/theme';
-import { Calendar, ChevronRight } from 'lucide-react-native';
+import { Calendar, ChevronRight, Newspaper } from 'lucide-react-native';
 
 interface NewsCardProps {
   id: string;
@@ -10,6 +10,7 @@ interface NewsCardProps {
   imageUrl: string;
   date: string;
   category: string;
+  url?: string;
   onPress?: () => void;
 }
 
@@ -21,6 +22,8 @@ export const NewsCard: React.FC<NewsCardProps> = ({
   category,
   onPress,
 }) => {
+  const [imageError, setImageError] = React.useState(false);
+
   return (
     <TouchableOpacity
       style={styles.card}
@@ -28,12 +31,23 @@ export const NewsCard: React.FC<NewsCardProps> = ({
       onPress={onPress}
     >
       <View style={styles.imageContainer}>
-        <Image source={{ uri: imageUrl }} style={styles.image} resizeMode="cover" />
+        {imageUrl && !imageError ? (
+          <Image
+            source={{ uri: imageUrl }}
+            style={styles.image}
+            resizeMode="cover"
+            onError={() => setImageError(true)}
+          />
+        ) : (
+          <View style={styles.imageFallback}>
+            <Newspaper size={36} color={Colors.onSurfaceVariant} strokeWidth={1.5} />
+          </View>
+        )}
         <View style={styles.categoryBadge}>
           <Text style={styles.categoryText}>{category}</Text>
         </View>
       </View>
-      
+
       <View style={styles.content}>
         <View style={styles.dateContainer}>
           <Calendar size={14} color={Colors.onSurfaceVariant} strokeWidth={2} />
@@ -73,6 +87,13 @@ const styles = StyleSheet.create({
   image: {
     width: '100%',
     height: '100%',
+  },
+  imageFallback: {
+    width: '100%',
+    height: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.surfaceContainerLow,
   },
   categoryBadge: {
     position: 'absolute',

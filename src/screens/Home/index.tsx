@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -6,6 +6,8 @@ import {
   ScrollView,
   StyleSheet,
   TouchableOpacity,
+  Linking,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Car, Droplets, Disc, Wrench } from 'lucide-react-native';
@@ -18,32 +20,7 @@ import { MaintenanceDetailModal, type MaintenanceItem } from '@/components/Maint
 import { Colors, Typography, Spacing, Radius, Elevation } from '@/constants/theme';
 import { useVehicles } from '@/contexts/VehicleContext';
 import vehicleService from '@/services/vehicle.service';
-
-// Mock data — will be replaced by real API data later
-const MOCK_VEHICLE = {
-  name: '2019 Honda Civic',
-  mileage: '45,230 km',
-  healthScore: 85,
-};
-
-const MOCK_NEWS = [
-  {
-    id: '1',
-    title: 'Top 10 Most Reliable Cars of 2026',
-    excerpt: 'We\'ve driven, tested, and analyzed over 100 new vehicles this year. Discover which cars stood the test of time and miles with zero issues.',
-    imageUrl: 'https://images.unsplash.com/photo-1549317661-bd32c8ce0db2?q=80&w=2670&auto=format&fit=crop',
-    date: 'Apr 08, 2026',
-    category: 'Reviews',
-  },
-  {
-    id: '2',
-    title: 'The Future of EV Batteries Is Finally Here',
-    excerpt: 'Solid-state batteries are successfully pushing electric vehicles past the 1,000 km range milestone. What does this mean for the industry?',
-    imageUrl: 'https://cdn.prod.website-files.com/5ec85520c4dfff034b036be2/63223ca52c095a13a1a74d91_the-future-of-ev-batteries_header.webp',
-    date: 'Apr 05, 2026',
-    category: 'Industry',
-  },
-];
+import newsService, { NewsItem as NewsItemType } from '@/services/news.service';
 
 const MOCK_OFFERS: OfferDetail[] = [
   {
@@ -111,6 +88,28 @@ export const HomeScreen: React.FC<Props> = ({ navigation }) => {
     : '0 km';
   const healthScore = 85; // Mock health score for now
   const healthFraction = healthScore / 100;
+
+  // ── Automotive News state ──
+  const [news, setNews] = useState<NewsItemType[]>([]);
+  const [isLoadingNews, setIsLoadingNews] = useState(true);
+
+  const fetchNews = useCallback(async () => {
+    try {
+      setIsLoadingNews(true);
+      const articles = await newsService.getAutomotiveNews(10);
+      setNews(articles);
+    } catch (error) {
+      console.error('[HomeScreen] Failed to fetch news:', error);
+      // Keep previous news if already loaded; silently fail on refresh
+    } finally {
+      setIsLoadingNews(false);
+    }
+  }, []);
+
+  // Fetch news on mount
+  useEffect(() => {
+    fetchNews();
+  }, [fetchNews]);
 
   // State for offer detail modal
   const [selectedOffer, setSelectedOffer] = useState<OfferDetail | null>(null);
@@ -287,27 +286,44 @@ export const HomeScreen: React.FC<Props> = ({ navigation }) => {
 
         {/* ── Automotive News ── */}
         <View style={styles.section}>
-          <SectionHeader
-            title="Automotive News"
-          />
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.offersScroll}
-          >
-            {MOCK_NEWS.map((news) => (
-              <NewsCard
-                key={news.id}
-                id={news.id}
-                title={news.title}
-                excerpt={news.excerpt}
-                imageUrl={news.imageUrl}
-                date={news.date}
-                category={news.category}
-                onPress={() => alert(`Opening news: ${news.title}`)}
-              />
-            ))}
-          </ScrollView>
+          <SectionHeader title="Automotive News" />
+          {isLoadingNews ? (
+            <View style={styles.newsLoadingContainer}>
+              <ActivityIndicator size="small" color={Colors.primary} />
+              <Text style={styles.loadingText}>Loading latest news…</Text>
+            </View>
+          ) : news.length === 0 ? (
+            <View style={styles.emptyContainer}>
+              <Text style={styles.emptyText}>No news available right now.</Text>
+              <Text style={styles.emptySubtext}>Pull to refresh or check back later.</Text>
+            </View>
+          ) : (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.offersScroll}
+            >
+              {news.map((article) => (
+                <NewsCard
+                  key={article.id}
+                  id={article.id}
+                  title={article.title}
+                  excerpt={article.excerpt}
+                  imageUrl={article.imageUrl}
+                  date={article.date}
+                  category={article.category}
+                  url={article.url}
+                  onPress={() => {
+                    if (article.url) {
+                      Linking.openURL(article.url).catch(() =>
+                        console.warn('Could not open URL:', article.url)
+                      );
+                    }
+                  }}
+                />
+              ))}
+            </ScrollView>
+          )}
         </View>
 
         {/* ── Special Offers ── */}
@@ -472,6 +488,13 @@ const styles = StyleSheet.create({
   },
 
   // Loading and empty states
+  newsLoadingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.sm,
+    paddingVertical: Spacing.xl,
+  },
   loadingContainer: {
     alignItems: 'center',
     justifyContent: 'center',
