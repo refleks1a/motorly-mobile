@@ -22,7 +22,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import * as SecureStore from 'expo-secure-store';
 import * as ImagePicker from 'expo-image-picker';
-import { Camera, ArrowUp, MoreHorizontal, Trash2, X } from 'lucide-react-native';
+import { Camera, ArrowUp, MoreHorizontal, Trash2, X, Sparkles, ChevronDown, MessageSquare } from 'lucide-react-native';
 import { BlurView } from 'expo-blur';
 import { AiMessage } from '@/components/chat/AiMessage';
 import { UserMessage } from '@/components/chat/UserMessage';
@@ -128,6 +128,8 @@ export const DiagnoseScreen: React.FC = () => {
   const [selectedImageUri, setSelectedImageUri] = useState<string | null>(null);
   const [headerMenuVisible, setHeaderMenuVisible] = useState(false);
   const [headerMenuPos, setHeaderMenuPos] = useState({ top: 0, right: 0 });
+  const [useAgenticAI, setUseAgenticAI] = useState(true);
+  const [agentDropdownVisible, setAgentDropdownVisible] = useState(false);
 
   const listRef = useRef<FlatList>(null);
   const moreBtnRef = useRef<View>(null);
@@ -376,6 +378,7 @@ export const DiagnoseScreen: React.FC = () => {
       const response = await chatService.sendMessage(currentSessionId, { 
         content: text || 'Please analyze this image', 
         imageUri: imageToSend || undefined,
+        useAgent: useAgenticAI,
       });
       
       // Clear timeout since we got a response
@@ -428,7 +431,7 @@ export const DiagnoseScreen: React.FC = () => {
       // Automatic retry in background (non-blocking)
       setTimeout(async () => {
         try {
-          const retryResponse = await chatService.sendMessage(currentSessionId, { content: text });
+          const retryResponse = await chatService.sendMessage(currentSessionId, { content: text, useAgent: useAgenticAI });
           const retryMessage: Message = {
             id: retryResponse.id || `retry-${aiMessageId}`,
             type: 'ai',
@@ -568,11 +571,28 @@ export const DiagnoseScreen: React.FC = () => {
               </View>
             </View>
           )}
+          {/* The switch is now moved inside the input bar */}
+          
           <View style={styles.inputBar}>
             <TouchableOpacity style={styles.cameraBtn} activeOpacity={0.7} disabled={isLoadingSession} onPress={handlePickImage}>
               <Camera size={26} color={selectedImageUri ? Colors.primary : Colors.onSurfaceVariant} strokeWidth={2} />
             </TouchableOpacity>
             <View style={styles.inputWrapper}>
+              {/* Agent mode selector pill */}
+              <TouchableOpacity
+                style={styles.agentDropdownBtn}
+                onPress={() => setAgentDropdownVisible(true)}
+                activeOpacity={0.7}
+              >
+                {useAgenticAI
+                  ? <Sparkles size={16} color={Colors.primary} />
+                  : <MessageSquare size={16} color={Colors.onSurfaceVariant} />}
+                <ChevronDown size={11} color={useAgenticAI ? Colors.primary : Colors.onSurfaceVariant} />
+              </TouchableOpacity>
+
+              {/* Divider */}
+              <View style={styles.agentDivider} />
+
               <TextInput
                 style={styles.input}
                 placeholder={selectedImageUri ? 'Add a message (optional)...' : 'Ask Motorly...'}
@@ -595,10 +615,10 @@ export const DiagnoseScreen: React.FC = () => {
                   onPress={sendMessage}
                   disabled={(!input.trim() && !selectedImageUri) || isSendingMessage}
                 >
-                  <ArrowUp 
-                    size={20} 
-                    color={(!input.trim() && !selectedImageUri) ? Colors.onSurfaceVariant : Colors.onPrimary} 
-                    strokeWidth={3} 
+                  <ArrowUp
+                    size={20}
+                    color={(!input.trim() && !selectedImageUri) ? Colors.onSurfaceVariant : Colors.onPrimary}
+                    strokeWidth={3}
                   />
                 </TouchableOpacity>
               )}
@@ -606,6 +626,50 @@ export const DiagnoseScreen: React.FC = () => {
           </View>
         </View>
       </KeyboardAvoidingView>
+
+      {/* ── Agent Mode Dropdown ── */}
+      <Modal visible={agentDropdownVisible} transparent animationType="fade">
+        <Pressable style={StyleSheet.absoluteFill} onPress={() => setAgentDropdownVisible(false)}>
+          <View style={styles.agentDropdownMenu}>
+            <Text style={styles.agentDropdownMenuTitle}>AI Mode</Text>
+
+            {/* Agentic option */}
+            <TouchableOpacity
+              style={[styles.agentModeOption, useAgenticAI && styles.agentModeOptionActive]}
+              onPress={() => { setUseAgenticAI(true); setAgentDropdownVisible(false); }}
+              activeOpacity={0.7}
+            >
+              <View style={[styles.agentModeIconWrap, useAgenticAI && styles.agentModeIconWrapActive]}>
+                <Sparkles size={17} color={useAgenticAI ? Colors.primary : Colors.onSurfaceVariant} />
+              </View>
+              <View style={styles.agentModeTextWrap}>
+                <Text style={[styles.agentModeLabel, useAgenticAI && styles.agentModeLabelActive]}>Agentic</Text>
+                <Text style={styles.agentModeDesc}>AI with tools & vehicle data</Text>
+              </View>
+              {useAgenticAI && <View style={styles.agentModeDot} />}
+            </TouchableOpacity>
+
+            {/* Divider */}
+            <View style={styles.agentMenuDivider} />
+
+            {/* Standard option */}
+            <TouchableOpacity
+              style={[styles.agentModeOption, !useAgenticAI && styles.agentModeOptionActive]}
+              onPress={() => { setUseAgenticAI(false); setAgentDropdownVisible(false); }}
+              activeOpacity={0.7}
+            >
+              <View style={[styles.agentModeIconWrap, !useAgenticAI && styles.agentModeIconWrapActive]}>
+                <MessageSquare size={17} color={!useAgenticAI ? Colors.primary : Colors.onSurfaceVariant} />
+              </View>
+              <View style={styles.agentModeTextWrap}>
+                <Text style={[styles.agentModeLabel, !useAgenticAI && styles.agentModeLabelActive]}>Standard</Text>
+                <Text style={styles.agentModeDesc}>Fast, direct responses</Text>
+              </View>
+              {!useAgenticAI && <View style={styles.agentModeDot} />}
+            </TouchableOpacity>
+          </View>
+        </Pressable>
+      </Modal>
 
       {/* ── Header Context Menu ── */}
       <Modal visible={headerMenuVisible} transparent animationType="fade">
@@ -688,8 +752,115 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
     gap: Spacing.sm,
     paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.md,
+    paddingBottom: Platform.OS === 'ios' ? Spacing.lg : Spacing.md,
     backgroundColor: Colors.surface,
+  },
+  // Agent mode dropdown button (inside input pill)
+  agentDropdownBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingLeft: Spacing.md,
+    paddingRight: Spacing.sm,
+    paddingVertical: Spacing.sm,
+    alignSelf: 'center',
+  },
+  agentDropdownLabel: {
+    fontSize: Typography.labelMd,
+    fontWeight: Typography.weightSemiBold,
+    fontFamily: Typography.fontBody,
+    color: Colors.primary,
+  },
+  agentDropdownLabelInactive: {
+    color: Colors.onSurfaceVariant,
+  },
+  agentDivider: {
+    width: 1,
+    height: 18,
+    backgroundColor: Colors.outlineVariant,
+    alignSelf: 'center',
+    marginRight: Spacing.xs,
+    opacity: 0.5,
+  },
+
+  // Agent mode dropdown menu (modal card)
+  agentDropdownMenu: {
+    position: 'absolute',
+    bottom: 130,
+    left: Spacing.lg,
+    width: 258,
+    backgroundColor: Colors.surface,
+    borderRadius: Radius.lg,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
+    elevation: 10,
+    borderWidth: 1,
+    borderColor: Colors.outlineVariant,
+  },
+  agentDropdownMenuTitle: {
+    fontSize: Typography.labelSm,
+    fontWeight: Typography.weightSemiBold,
+    fontFamily: Typography.fontBody,
+    color: Colors.onSurfaceVariant,
+    paddingHorizontal: Spacing.md,
+    paddingTop: Spacing.md,
+    paddingBottom: Spacing.xs,
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+  },
+  agentModeOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm + 2,
+    gap: Spacing.sm,
+  },
+  agentModeOptionActive: {
+    backgroundColor: 'rgba(168, 57, 0, 0.05)',
+  },
+  agentModeIconWrap: {
+    width: 34,
+    height: 34,
+    borderRadius: Radius.sm,
+    backgroundColor: Colors.surfaceContainerHigh,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  agentModeIconWrapActive: {
+    backgroundColor: 'rgba(168, 57, 0, 0.1)',
+  },
+  agentModeTextWrap: {
+    flex: 1,
+  },
+  agentModeLabel: {
+    fontSize: Typography.bodyMd,
+    fontWeight: Typography.weightSemiBold,
+    fontFamily: Typography.fontBody,
+    color: Colors.onBackground,
+  },
+  agentModeLabelActive: {
+    color: Colors.primary,
+  },
+  agentModeDesc: {
+    fontSize: Typography.labelSm,
+    fontFamily: Typography.fontBody,
+    color: Colors.onSurfaceVariant,
+    marginTop: 1,
+  },
+  agentModeDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: Colors.primary,
+  },
+  agentMenuDivider: {
+    height: 1,
+    backgroundColor: Colors.outlineVariant,
+    marginHorizontal: Spacing.md,
+    opacity: 0.4,
   },
   inputWrapper: {
     flex: 1,
@@ -698,13 +869,13 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surfaceContainerHigh,
     borderRadius: 22,
     minHeight: 44,
+    paddingTop: 4,
     paddingRight: 4,
   },
   input: {
     flex: 1,
     minHeight: 44,
     maxHeight: 120,
-    paddingLeft: Spacing.lg,
     paddingRight: Spacing.sm,
     paddingTop: Platform.OS === 'ios' ? 12 : 10,
     paddingBottom: Platform.OS === 'ios' ? 12 : 10,

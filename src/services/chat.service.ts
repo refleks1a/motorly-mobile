@@ -36,6 +36,7 @@ export interface SendMessageRequest {
   content: string;
   vehicleId?: string;
   imageUri?: string;
+  useAgent?: boolean;
 }
 
 export interface DiagnosisHistoryItem {
@@ -82,6 +83,9 @@ class ChatService {
       formData.append('content', messageData.content);
       if (messageData.vehicleId) {
         formData.append('vehicleId', messageData.vehicleId);
+      }
+      if (messageData.useAgent !== undefined) {
+        formData.append('useAgent', messageData.useAgent.toString());
       }
       
       const filename = messageData.imageUri.split('/').pop() || 'image.jpg';
