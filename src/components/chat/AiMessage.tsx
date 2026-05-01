@@ -2,6 +2,7 @@ import React, { useRef, useState, useEffect } from 'react';
 import {
   View,
   Text,
+  Platform,
   Pressable,
   Modal,
   TouchableOpacity,
@@ -33,22 +34,42 @@ const SCREEN_HEIGHT = Dimensions.get('window').height;
 export const AiMessage: React.FC<Props> = ({ text, timestamp, diagnosisCard, isLoading = false }) => {
   const bubbleRef = useRef<View>(null);
   const [menuVisible, setMenuVisible] = useState(false);
-  const [menuTop, setMenuTop] = useState(0);
+  const [menuPosition, setMenuPosition] = useState<{ top?: number; bottom?: number }>({});
+  // store bubble geometry for re-positioning once menu is measured
+  const bubbleGeom = useRef<{ pageY: number; height: number } | null>(null);
+
+  const computePosition = (bubblePageY: number, bubbleHeight: number, menuHeight: number) => {
+    const topBoundary = 60;
+    const bottomBoundary = SCREEN_HEIGHT - 130; // input bar + safe gap
+
+    const belowTop = bubblePageY + bubbleHeight;
+    const hasSpaceBelow = belowTop + menuHeight <= bottomBoundary;
+    const hasSpaceAbove = bubblePageY - menuHeight >= topBoundary;
+
+    if (hasSpaceBelow) {
+      return { top: belowTop };
+    } else if (hasSpaceAbove) {
+      return { bottom: SCREEN_HEIGHT - bubblePageY };
+    } else {
+      // overlay: clamp inside visible area, above the input bar
+      return { top: bottomBoundary - menuHeight };
+    }
+  };
 
   const handleLongPress = () => {
     bubbleRef.current?.measure((_x, _y, _w, height, _pageX, pageY) => {
-      const estimatedMenuHeight = 130; // approx height of menu elements combined
-      const bottomBoundary = SCREEN_HEIGHT - 110; // reserve space for input bar
-      let topPosition = pageY + height + 6;
-
-      // if menu would overlap the input bar or fall off, push it above the bubble instead
-      if (topPosition + estimatedMenuHeight > bottomBoundary) {
-        topPosition = pageY - estimatedMenuHeight - 6;
-      }
-
-      setMenuTop(topPosition);
+      bubbleGeom.current = { pageY, height };
+      // show hidden first so onLayout can measure it
+      setMenuPosition({ top: -9999 });
       setMenuVisible(true);
     });
+  };
+
+  const handleMenuLayout = (e: { nativeEvent: { layout: { height: number } } }) => {
+    if (!bubbleGeom.current) return;
+    const menuHeight = e.nativeEvent.layout.height;
+    const { pageY, height } = bubbleGeom.current;
+    setMenuPosition(computePosition(pageY, height, menuHeight));
   };
 
   const handleCopy = async () => {
@@ -56,7 +77,7 @@ export const AiMessage: React.FC<Props> = ({ text, timestamp, diagnosisCard, isL
     setMenuVisible(false);
   };
 
-  const menuLeft = Spacing.xxl + 36 + Spacing.md; // avatar width + gap
+  const menuLeft = Spacing.xxl;
 
   // Loading dots animation state
   const [dots, setDots] = useState('');
@@ -127,9 +148,9 @@ export const AiMessage: React.FC<Props> = ({ text, timestamp, diagnosisCard, isL
 
   return (
     <>
-      <View style={styles.row}>
-        <View style={styles.avatar}>
-          <Bot size={18} color={Colors.onPrimary} strokeWidth={2} />
+      <View style={styles.wrapper}>
+        <View style={styles.avatarLabel}>
+          <Bot size={22} color={Colors.primary} strokeWidth={2} />
         </View>
 
         <Pressable
@@ -174,7 +195,8 @@ export const AiMessage: React.FC<Props> = ({ text, timestamp, diagnosisCard, isL
             <BlurView
               intensity={8}
               tint="dark"
-              style={[styles.menu, { top: menuTop, left: menuLeft }]}
+              style={[styles.menu, menuPosition, { left: menuLeft }]}
+              onLayout={handleMenuLayout}
             >
               {timestamp && <Text style={styles.timestamp}>{timestamp}</Text>}
               {timestamp && <View style={styles.divider} />}
@@ -192,24 +214,16 @@ export const AiMessage: React.FC<Props> = ({ text, timestamp, diagnosisCard, isL
 };
 
 const styles = StyleSheet.create({
-  row: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
+  wrapper: {
     marginBottom: Spacing.xl,
     paddingHorizontal: Spacing.xxl,
-    gap: Spacing.md,
   },
-  avatar: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: Colors.primary,
+  avatarLabel: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 2,
-    flexShrink: 0,
+    marginBottom: Spacing.xs,
   },
-  bubbleWrapper: { flex: 1 },
+  bubbleWrapper: {},
   bubble: {
     backgroundColor: Colors.surface,
     borderRadius: Radius.md,
