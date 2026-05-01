@@ -418,7 +418,9 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.xl,
   },
   vehicleInfo: {
+    flex: 1,
     gap: Spacing.xs,
+    marginRight: Spacing.md,
   },
   vehicleLabel: {
     fontSize: Typography.labelSm,
