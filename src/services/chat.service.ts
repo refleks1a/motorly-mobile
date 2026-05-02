@@ -24,6 +24,8 @@ export interface ChatMessage {
   };
   imageUrl?: string;
   createdAt: string;
+  /** Populated when the AI is asking a clarifying question */
+  suggestedReplies?: string[];
 }
 
 export interface CreateChatSessionRequest {
