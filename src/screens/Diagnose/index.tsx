@@ -38,7 +38,7 @@ type MsgType = 'date' | 'ai' | 'user';
 
 interface BaseMsg { id: string; type: MsgType; }
 interface DateMsg extends BaseMsg { type: 'date'; label: string; }
-interface AiMsg   extends BaseMsg { type: 'ai';   text: string; timestamp?: string; diagnosisCard?: { issue: string; recommendation: string; image?: any; }; isLoading?: boolean; }
+interface AiMsg   extends BaseMsg { type: 'ai';   text: string; timestamp?: string; diagnosisCard?: { issue: string; recommendation: string; image?: any; }; isLoading?: boolean; suggestedReplies?: string[]; }
 interface UserMsg extends BaseMsg { type: 'user'; text: string; timestamp?: string; imageUri?: string; }
 type Message = DateMsg | AiMsg | UserMsg;
 
@@ -83,11 +83,12 @@ const convertChatMessagesToUIMessages = (chatMessages: ServiceChatMessage[]): Me
         imageUri: (msg as any).imageUrl || undefined,
       });
     } else if (msg.role === 'assistant') {
-      const uiMessage: Message = {
+      const uiMessage: AiMsg = {
         id: msg.id,
         type: 'ai',
         text: msg.content,
         timestamp,
+        suggestedReplies: msg.suggestedReplies,
       };
       
       // Add diagnosis card if metadata exists
@@ -356,7 +357,7 @@ export const DiagnoseScreen: React.FC = () => {
     const aiMessage: Message = {
       id: aiMessageId,
       type: 'ai',
-      text: 'Thinking...',
+      text: 'Thinking',
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }),
       isLoading: true,
     };
@@ -385,12 +386,13 @@ export const DiagnoseScreen: React.FC = () => {
       clearTimeout(timeoutId);
       
       // Update AI message with actual response
-      const updatedAiMessage: Message = {
+      const updatedAiMessage: AiMsg = {
         id: response.id || aiMessageId,
         type: 'ai',
         text: response.content || 'I received your message but my response was empty. Please try again.',
         timestamp: new Date(response.createdAt || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }),
         isLoading: false,
+        suggestedReplies: response.suggestedReplies,
       };
 
       // Check if we have diagnosis metadata to show a diagnosis card
@@ -462,10 +464,27 @@ export const DiagnoseScreen: React.FC = () => {
     }
   };
 
+  const handleQuickReply = (reply: string) => {
+    setInput(reply);
+    // Dismiss suggested replies on all AI messages
+    setMessages(prev => prev.map(msg =>
+      msg.type === 'ai' ? { ...msg, suggestedReplies: undefined } : msg
+    ));
+  };
+
   const renderItem = ({ item }: { item: Message }) => {
     if (item.type === 'date') return <DateSeparator label={item.label} />;
     if (item.type === 'ai')
-      return <AiMessage text={item.text} timestamp={item.timestamp} diagnosisCard={item.diagnosisCard} />;
+      return (
+        <AiMessage
+          text={item.text}
+          timestamp={item.timestamp}
+          diagnosisCard={item.diagnosisCard}
+          isLoading={item.isLoading}
+          suggestedReplies={item.suggestedReplies}
+          onQuickReply={handleQuickReply}
+        />
+      );
     if (item.type === 'user')
       return (
         <UserMessage

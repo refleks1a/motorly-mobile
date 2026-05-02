@@ -9,6 +9,7 @@ import {
   TouchableWithoutFeedback,
   StyleSheet,
   Dimensions,
+  ScrollView,
 } from 'react-native';
 import { BlurView } from 'expo-blur';
 import * as Clipboard from 'expo-clipboard';
@@ -26,12 +27,14 @@ interface Props {
   timestamp?: string;
   diagnosisCard?: DiagnosisCardData;
   isLoading?: boolean;
+  suggestedReplies?: string[];
+  onQuickReply?: (reply: string) => void;
 }
 
 const MENU_WIDTH = 150;
 const SCREEN_HEIGHT = Dimensions.get('window').height;
 
-export const AiMessage: React.FC<Props> = ({ text, timestamp, diagnosisCard, isLoading = false }) => {
+export const AiMessage: React.FC<Props> = ({ text, timestamp, diagnosisCard, isLoading = false, suggestedReplies, onQuickReply }) => {
   const bubbleRef = useRef<View>(null);
   const [menuVisible, setMenuVisible] = useState(false);
   const [menuPosition, setMenuPosition] = useState<{ top?: number; bottom?: number }>({});
@@ -158,10 +161,10 @@ export const AiMessage: React.FC<Props> = ({ text, timestamp, diagnosisCard, isL
           onLongPress={isLoading ? undefined : handleLongPress}
           delayLongPress={350}
         >
-          <View ref={bubbleRef} style={styles.bubble} collapsable={false}>
+          <View ref={bubbleRef} style={[styles.bubble, isLoading && styles.bubbleTransparent]} collapsable={false}>
             {isLoading ? (
               <View style={styles.loadingContainer}>
-                <Text style={styles.loadingText}>{text}{dots}</Text>
+                <Text style={styles.loadingText}>{text}</Text>
                 <View style={styles.loadingDots}>
                   <View style={[styles.dot, styles.dot1]} />
                   <View style={[styles.dot, styles.dot2]} />
@@ -176,6 +179,25 @@ export const AiMessage: React.FC<Props> = ({ text, timestamp, diagnosisCard, isL
                     issue={diagnosisCard.issue}
                     recommendation={diagnosisCard.recommendation}
                   />
+                )}
+                {suggestedReplies && suggestedReplies.length > 0 && (
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    style={styles.chipsScroll}
+                    contentContainerStyle={styles.chipsContainer}
+                  >
+                    {suggestedReplies.map((reply, idx) => (
+                      <TouchableOpacity
+                        key={idx}
+                        style={styles.chip}
+                        onPress={() => onQuickReply?.(reply)}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={styles.chipText}>{reply}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
                 )}
               </View>
             )}
@@ -229,11 +251,17 @@ const styles = StyleSheet.create({
     borderRadius: Radius.md,
     borderTopLeftRadius: 4,
     padding: Spacing.lg,
+    paddingBottom: Spacing.sm,
     shadowColor: '#1a1a1a',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.04,
     shadowRadius: 6,
     elevation: 2,
+  },
+  bubbleTransparent: {
+    backgroundColor: 'transparent',
+    shadowOpacity: 0,
+    elevation: 0,
   },
   text: {
     fontSize: Typography.bodyLg,
@@ -308,4 +336,30 @@ const styles = StyleSheet.create({
   dot1: { opacity: 0.4 },
   dot2: { opacity: 0.6 },
   dot3: { opacity: 0.8 },
+
+  // Quick-reply chips
+  chipsScroll: {
+    marginTop: Spacing.md,
+    marginHorizontal: -Spacing.xs,
+  },
+  chipsContainer: {
+    paddingHorizontal: Spacing.xs,
+    paddingBottom: Spacing.sm,
+    gap: Spacing.sm,
+    flexDirection: 'row',
+  },
+  chip: {
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: 20,
+    borderWidth: 1.5,
+    borderColor: Colors.primary,
+    backgroundColor: 'rgba(168, 57, 0, 0.06)',
+  },
+  chipText: {
+    fontSize: Typography.labelMd,
+    fontFamily: Typography.fontBody,
+    fontWeight: Typography.weightSemiBold,
+    color: Colors.primary,
+  },
 });
